@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Registro</title>
+</head>
+<body>
+
+  
+  <div class="auth">
+    <div class="card authCard">
+      <div class="hero">
+        <div class="pill"><span class="badgeDot"></span> Registro</div>
+
+        <h1 class="h1" style="margin-top:14px;">Crea tu cuenta</h1>
+        <p class="p">Diseño oscuro verdoso, limpio y moderno, como tu referencia.</p>
+        <div class="smallLinks" style="margin-top:16px;">
+          <a class="btn" href="bienvenida.html">← Bienvenida</a>
+          <a class="btn" href="login.html">Ya tengo cuenta</a>
+        </div>
+      </div>
+
+      <form class="form">
+        <h2 class="h2">Datos</h2>
+        <div class="row" style="margin-top:12px;">
+          <input id="nombre" class="input" placeholder="Nombre" />
+          <input id="usuario" class="input" placeholder="Usuario" />
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <input id="correo" class="input" placeholder="Correo" />
+          <input id="telefono" class="input" placeholder="Teléfono" />
+        </div>
+        <div class="row" style="margin-top:12px;">
+          <input id="password" class="input" type="password" placeholder="Contraseña" />
+          <input id="confirmar" class="input" type="password" placeholder="Confirmar contraseña" />
+        </div>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button id="btnRegistro" class="btn primary" type="button">Registrarme</button>
+          <a class="btn ghost" href="login.html">Ir a login</a>
+        </div>
+        <p class="help">* Botón sin lógica (solo UI).</p>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="registro.js"></script>
+
+</body>
+</html>

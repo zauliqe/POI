@@ -1,0 +1,48 @@
+<!doctype html><html lang="es"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="styles.css"/><title>Notificaciones</title></head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Notificaciones</div></div></div>
+    <nav class="nav">
+      <a href="dashboard.html">Dashboard / Chat</a>
+      <a class="active" href="notificaciones.html">Notificaciones</a>
+      <a href="perfil.html">Perfil</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="left"><div class="avatar">🔔</div><div><div class="title">Notificaciones</div><div class="sub">Últimas actividades</div></div></div>
+      <div class="right"><button class="btn small">Marcar todo leído</button></div>
+    </header>
+
+    <section class="stage">
+      <div class="container">
+        <div class="card pad">
+          <div class="item" style="border:1px solid var(--stroke);">
+            <div class="avatar">G1</div>
+            <div><div class="name">Grupo 1</div><div class="meta">Nueva tarea asignada</div></div>
+            <div style="margin-left:auto;" class="meta">hace 2 min</div>
+          </div>
+          <div class="item" style="border:1px solid var(--stroke); margin-top:10px;">
+            <div class="avatar">A</div>
+            <div><div class="name">Adrián</div><div class="meta">Mensaje nuevo</div></div>
+            <div style="margin-left:auto;" class="meta">hace 15 min</div>
+          </div>
+          <div class="item" style="border:1px solid var(--stroke); margin-top:10px;">
+            <div class="avatar">★</div>
+            <div><div class="name">Recompensas</div><div class="meta">Ganaste 10 pts</div></div>
+            <div style="margin-left:auto;" class="meta">ayer</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="composer">
+      <div class="pill">Preferencias de notificación (UI)</div>
+    </footer>
+  </main>
+</div>
+</body></html>

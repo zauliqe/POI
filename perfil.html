@@ -1,0 +1,49 @@
+<!doctype html><html lang="es"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="styles.css"/><title>Perfil</title></head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Perfil</div></div></div>
+    <nav class="nav">
+      <a href="dashboard.html">Dashboard / Chat</a>
+      <a href="notificaciones.html">Notificaciones</a>
+      <a class="active" href="perfil.html">Perfil</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="left"><div class="avatar">A</div><div><div class="title">Mi perfil</div><div class="sub">@usuario</div></div></div>
+      <div class="right"><button id="btnGuardarPerfil" class="btn small primary">Guardar</button></div>
+    </header>
+
+    <section class="stage">
+      <div class="container">
+        <div class="grid2">
+          
+          <div class="card pad">
+            <h2 class="h2">Datos</h2>
+            <div style="margin-top:12px;"><input id="nombrePerfil" class="input" placeholder="Nombre" /></div>
+            <div style="margin-top:12px;"><input id="usuarioPerfil" class="input" placeholder="Usuario" /></div>
+            <div style="margin-top:12px;"><input id="correoPerfil" class="input" placeholder="Correo" disabled /></div>
+          </div>
+
+          <div class="card pad">
+            <h2 class="h2">Preferencias</h2>
+            <div style="margin-top:12px;"><select class="select"><option>Tema: Oscuro verde</option></select></div>
+            <div style="margin-top:12px;"><select class="select"><option>Privacidad: Solo amigos</option></select></div>
+            <div style="margin-top:12px;"><button id="btnCerrarSesion" class="btn danger">Cerrar sesión</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="composer">
+      <div class="pill">Avatar / marco (UI)</div>
+    </footer>
+  </main>
+</div>
+  <script type="module" src="perfil.js"></script>
+</body>
+</html>

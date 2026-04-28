@@ -1,0 +1,63 @@
+<!doctype html><html lang="es"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="styles.css"/><title>Crear Grupo</title></head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Grupos</div></div></div>
+    <nav class="nav">
+      <a href="dashboard.html">Dashboard / Chat</a>
+      <a class="active" href="crear-grupo.html">Crear Grupo</a>
+      <a href="tareas-grupo.html">Tareas del Grupo</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="left"><div class="avatar">G</div><div><div class="title">Crear Grupo</div><div class="sub">Privado / público</div></div></div>
+      <div class="right"><a class="btn small" href="dashboard.html">← Chat</a></div>
+    </header>
+
+    <section class="stage">
+      <div class="container">
+        <div class="card pad">
+          <div class="grid2">
+            <div>
+              <label class="p">Nombre del grupo</label>
+              <input class="input" placeholder="Ej: Grupo 3" />
+            </div>
+            <div>
+              <label class="p">Tipo</label>
+              <select class="select">
+                <option>Privado</option><option>Público</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <label class="p">Descripción</label>
+            <textarea class="textarea" placeholder="¿De qué trata el grupo?"></textarea>
+          </div>
+          <div class="grid2" style="margin-top:12px;">
+            <div>
+              <label class="p">Agregar miembros (placeholder)</label>
+              <input class="input" placeholder="Buscar usuario..." />
+            </div>
+            <div>
+              <label class="p">Foto/ícono</label>
+              <input class="input" placeholder="Subir (UI)" />
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <button class="btn primary" type="button">Crear grupo</button>
+            <a class="btn" href="dashboard.html">Cancelar</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="composer">
+      <div class="pill">Tips: nombre corto + icono</div>
+    </footer>
+  </main>
+</div>
+</body></html>

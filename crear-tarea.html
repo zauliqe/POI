@@ -1,0 +1,50 @@
+<!doctype html><html lang="es"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="stylesheet" href="styles.css"/><title>Crear Tarea</title></head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Crear tarea</div></div></div>
+    <nav class="nav">
+      <a href="tareas-grupo.html">← Tareas del Grupo</a>
+      <a class="active" href="crear-tarea.html">Crear Tarea</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="left"><div class="avatar">+</div><div><div class="title">Nueva tarea</div><div class="sub">Grupo 1</div></div></div>
+      <div class="right"><a class="btn small" href="tareas-grupo.html">Cancelar</a></div>
+    </header>
+
+    <section class="stage">
+      <div class="container">
+        <div class="card pad">
+          <div class="grid2">
+            <div><label class="p">Título</label><input class="input" placeholder="Ej: Investigar tema" /></div>
+            <div><label class="p">Fecha límite</label><input class="input" placeholder="DD/MM/AAAA" /></div>
+          </div>
+          <div class="grid2" style="margin-top:12px;">
+            <div><label class="p">Asignar a</label><input class="input" placeholder="Usuario o @handle" /></div>
+            <div><label class="p">Prioridad</label>
+              <select class="select"><option>Media</option><option>Alta</option><option>Baja</option></select>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <label class="p">Descripción</label>
+            <textarea class="textarea" placeholder="Detalles de la tarea..."></textarea>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <button class="btn primary" type="button">Crear</button>
+            <a class="btn" href="tareas-grupo.html">Volver</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="composer">
+      <div class="pill">Opcional: adjuntar archivo (UI)</div>
+    </footer>
+  </main>
+</div>
+</body></html>

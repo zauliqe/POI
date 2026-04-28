@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Dashboard + Chat</title>
+</head>
+<body>
+  <div class="app">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <b>CamOllin</b>
+          <div style="font-size:12px; color:var(--muted);">Dashboard</div>
+        </div>
+      </div>
+
+      <div class="sideSection">
+        <div class="pill">Menú</div>
+        <nav class="nav">
+          <a class="active" href="dashboard.html">Dashboard / Chat</a>
+          <a href="recompensas.html">Recompensas</a>
+          <a href="tareas-grupo.html">Tareas del Grupo</a>
+          <a href="crear-grupo.html">Crear Grupo</a>
+          <a href="notificaciones.html">Notificaciones</a>
+          <a href="perfil.html">Perfil</a>
+          <a href="info-mundial.html">Información Mundial</a>
+          <a href="info-estadios.html">Información Estadios</a>
+          <a href="mapa.html">Mapa / Ubicación</a>
+        </nav>
+      </div>
+
+      <div class="sideSection">
+        <div class="pill">Chats</div>
+        <div class="list">
+          <a class="item active" href="#">
+            <div class="avatar">A</div>
+            <div style="min-width:0">
+              <div class="name">Adrián</div>
+              <div class="meta">Privado</div>
+            </div>
+          </a>
+          <a class="item" href="#">
+            <div class="avatar">G1</div>
+            <div style="min-width:0">
+              <div class="name">Grupo 1</div>
+              <div class="meta">7 miembros</div>
+            </div>
+          </a>
+          <a class="item" href="#">
+            <div class="avatar">J</div>
+            <div style="min-width:0">
+              <div class="name">Jennifer</div>
+              <div class="meta">Privado</div>
+            </div>
+          </a>
+          <a class="item" href="#">
+            <div class="avatar">G2</div>
+            <div style="min-width:0">
+              <div class="name">Grupo 2</div>
+              <div class="meta">4 miembros</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="sideSection" style="margin-top:14px;">
+        <a class="btn" style="width:100%;" href="login.html">Cerrar sesión</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <div class="left">
+          <div class="avatar">A</div>
+          <div>
+            <div class="title">Adrián</div>
+            <div class="sub">Chat privado · En línea</div>
+          </div>
+        </div>
+        <div class="right">
+          <a class="btn small" href="videollamada.html">📹 Llamar</a>
+          <span class="iconBtn" title="Opciones">⋮</span>
+        </div>
+      </header>
+
+       <section class="stage">
+        <div class="chatWrap">
+          <div class="messages" id="chat"></div>
+    
+          
+      </section>
+        <footer class="composer">
+          <div class="iconBtn">📎</div>
+          <div class="iconBtn">📍</div>
+
+          <div class="box">
+            <input id="mensaje" placeholder="Mensaje..." />
+            <kbd>Enter</kbd>
+          </div>
+
+          <button id="enviar" class="btn primary">Enviar ➤</button>
+
+          <script type="module" src="firebase.js"></script>
+          <script type="module" src="chat.js"></script>
+        </footer>
+
+      
+    </main>
+  </div>
+</body>
+</html>
