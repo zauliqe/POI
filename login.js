@@ -1,3 +1,6 @@
+// esto es un comentario
+
+
 // login.js
 // 1. Importamos auth y TAMBIÉN db
 import { auth, db } from "./Firebase.js";
