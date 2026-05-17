@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@300;350;400&display=swap");
+
 :root{
   --bg0:#051a18;
   --bg1:#0a2b26;
@@ -33,7 +35,7 @@
 html,body{height:100%}
 body{
   margin:0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+  font-family: "Fredoka", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
   color:var(--text);
   background:
     radial-gradient(900px 550px at 20% 15%, rgba(69,214,173,.16), transparent 60%),
@@ -41,6 +43,12 @@ body{
     radial-gradient(900px 650px at 55% 85%, rgba(69,214,173,.08), transparent 55%),
     linear-gradient(135deg, var(--bg0), var(--bg1) 55%, var(--bg2));
 }
+
+.titulo_logo{
+  font-size:20px;
+  letter-spacing:0.2px;
+}
+
 
 a{color:inherit; text-decoration:none}
 a:hover{opacity:.95}
@@ -62,7 +70,7 @@ a:hover{opacity:.95}
   border:1px solid var(--stroke);
   background:rgba(255,255,255,.03);
   color:var(--muted);
-  font-size:13px;
+  font-size:16px;
 }
 
 .h1{font-size:34px; line-height:1.1; margin:0}
@@ -134,9 +142,12 @@ a:hover{opacity:.95}
   padding:10px 10px 16px;
 }
 .logo{
-  width:34px; height:34px; border-radius:10px;
-  background:linear-gradient(135deg, rgba(69,214,173,.35), rgba(27,189,147,.12));
-  border:1px solid rgba(69,214,173,.35);
+  width:54px; height:54px; border-radius:10px;
+  background:
+    url("./Recursos/logo.png") center/contain no-repeat,
+    linear-gradient(135deg, rgba(69, 214, 173, 0.137), rgba(27,189,147,.12));
+  
+  overflow:hidden;
 }
 .brand b{letter-spacing:.2px}
 .sideSection{margin-top:10px}
@@ -290,7 +301,7 @@ a:hover{opacity:.95}
 }
 .topbar .left{display:flex; align-items:center; gap:10px}
 .topbar .title{font-weight:750}
-.topbar .sub{font-size:12px; color:var(--muted)}
+.topbar .sub{font-size:15px; color:var(--muted)}
 .topbar .right{display:flex; align-items:center; gap:10px}
 
 .stage{
@@ -469,7 +480,7 @@ kbd{
 
   .pill{
     padding:7px 10px;
-    font-size:12px;
+    font-size:16px;
   }
 
   .nav{
