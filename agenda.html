@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Agenda de Tareas · CamOllin</title>
+  <style>
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+      margin-top: 20px;
+    }
+    .cal-day {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--stroke);
+      border-radius: 14px;
+      padding: 8px 6px;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.1s ease;
+    }
+    .cal-day:hover {
+      background: rgba(69,214,173,0.1);
+      border-color: rgba(69,214,173,0.3);
+    }
+    .cal-day.active {
+      background: rgba(69,214,173,0.2);
+      border-color: var(--accent);
+    }
+    .cal-day.has-tasks {
+      background: rgba(69,214,173,0.12);
+      border-left: 3px solid var(--accent);
+      font-weight: bold;
+    }
+    .day-number {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .weekday {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .cal-header {
+      text-align: center;
+      font-weight: 600;
+      color: var(--muted2);
+      padding: 6px;
+    }
+    .month-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .task-list {
+      margin-top: 24px;
+    }
+    .task-badge {
+      font-size: 11px;
+      background: rgba(69,214,173,0.2);
+      border-radius: 20px;
+      padding: 2px 8px;
+      display: inline-block;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Agenda</div></div></div>
+    <nav class="nav">
+      <a href="dashboard.html">Chats</a>
+      <a href="tareas-grupo.html">Tareas del grupo</a>
+      <a class="active" href="agenda.html">Agenda</a>
+      <a href="recompensas.html">Recompensas</a>
+    </nav>
+    <div class="sideSection">
+      <div class="pill">Info</div>
+      <nav class="nav">
+        <a href="mundial.html">Mundial 2026</a>
+        <a href="acerca-de.html">Acerca de</a>
+      </nav>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="left"><div class="avatar">📅</div><div><div class="title">Agenda de tareas</div><div class="sub">Calendario y fechas límite</div></div></div>
+      <div class="right">
+        <select id="grupoFiltroAgenda" class="select compactSelect"></select>
+        <a class="btn small" href="tareas-grupo.html">← Volver</a>
+      </div>
+    </header>
+
+    <section class="stage" style="overflow-y: auto;">
+      <div class="container">
+        <div class="card pad">
+          <div class="month-nav">
+            <button id="prevMonth" class="btn small">◀ Mes anterior</button>
+            <h2 id="monthYear" class="h2" style="margin:0;">Mayo 2026</h2>
+            <button id="nextMonth" class="btn small">Mes siguiente ▶</button>
+          </div>
+          <div class="calendar" id="calendarGrid">
+            <!-- Los días se generan con JS -->
+          </div>
+        </div>
+
+        <div class="card pad task-list" id="selectedDayTasks">
+          <h2 class="h2">Tareas para este día</h2>
+          <div id="tasksForDay" class="stackList">Selecciona un día.</div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="composer">
+      <div class="pill">Las tareas aparecen en el día de su fecha límite.</div>
+    </footer>
+  </main>
+</div>
+<script type="module" src="agenda.js"></script>
+</body>
+</html>
