@@ -131,14 +131,14 @@ a:hover{opacity:.95}
 
 /* ===== App Layout (sidebar + main) ===== */
 .app{
-  height:100vh;
+  min-height:100vh;
   display:grid;
   grid-template-columns: 290px 1fr;
   gap:18px;
   padding:18px;
 }
 @media (max-width: 1000px){
-  .app{grid-template-columns:1fr; height:auto; min-height:100vh}
+  .app{grid-template-columns:1fr; min-height:100vh}
   .main{min-height:72vh}
 }
 
