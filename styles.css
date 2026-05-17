@@ -37,11 +37,22 @@ body{
   margin:0;
   font-family: "Fredoka", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
   color:var(--text);
+  position: relative;
+  min-height: 100vh;
   background:
     radial-gradient(900px 550px at 20% 15%, rgba(69,214,173,.16), transparent 60%),
     radial-gradient(900px 550px at 80% 25%, rgba(27,189,147,.12), transparent 60%),
     radial-gradient(900px 650px at 55% 85%, rgba(69,214,173,.08), transparent 55%),
     linear-gradient(135deg, var(--bg0), var(--bg1) 55%, var(--bg2));
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("./Recursos/logo_fondo.png") center center / 100% auto no-repeat;
+  opacity: .2;
+  pointer-events: none;
 }
 
 .titulo_logo{
