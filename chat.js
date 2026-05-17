@@ -12,7 +12,6 @@ import {
   where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { currentConversationId, formatDate, initials, isUserOnline, privateConversationId, requireAuth } from "./app.js";
-// permision test
 const sendButton = document.getElementById("enviar");
 const input = document.getElementById("mensaje");
 const chat = document.getElementById("chat");
