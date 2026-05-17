@@ -1,44 +1,53 @@
-<!doctype html><html lang="es"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<link rel="stylesheet" href="styles.css"/><title>Videollamada</title></head>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Videollamada</title>
+</head>
 <body>
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Videollamada</div></div></div>
     <nav class="nav">
-      <a href="dashboard.html">Dashboard / Chat</a>
+      <a href="dashboard.html">Chats</a>
       <a class="active" href="videollamada.html">Videollamada</a>
       <a href="notificaciones.html">Notificaciones</a>
       <a href="perfil.html">Perfil</a>
     </nav>
+    <div class="sideSection">
+      <div class="pill">Info</div>
+      <nav class="nav">
+        <a href="mundial.html">Mundial 2026</a>
+        <a href="acerca-de.html">Acerca de</a>
+      </nav>
+    </div>
   </aside>
 
   <main class="main">
     <header class="topbar">
-      <div class="left"><div class="avatar">A</div><div><div class="title">Llamada con Adrián</div><div class="sub">Conectando…</div></div></div>
+      <div class="left"><div class="avatar">V</div><div><div id="callTitle" class="title">Videollamada</div><div id="callStatus" class="sub">Preparando cámara...</div></div></div>
       <div class="right">
-        <button class="btn small">🎤</button>
-        <button class="btn small">🎥</button>
-        <button class="btn danger small">⛔ Colgar</button>
+        <button id="toggleMic" class="btn small">Micrófono</button>
+        <button id="toggleCamera" class="btn small">Cámara</button>
+        <button id="hangCall" class="btn danger small">Colgar</button>
       </div>
     </header>
 
-    <section class="stage" style="display:grid; place-items:center;">
-      <div class="card pad" style="width:min(860px,92%); border-radius:24px;">
-        <div class="pill">Vista de video (placeholder)</div>
-        <div style="margin-top:12px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-          <div class="card pad" style="height:260px;">Video remoto</div>
-          <div class="card pad" style="height:260px;">Tu cámara</div>
-        </div>
-      </div>
+    <section class="stage videoStage">
+      <div id="remotePanel" class="remoteVideo">Esperando al otro usuario.</div>
+      <video id="localVideo" class="localVideo" autoplay muted playsinline></video>
     </section>
 
     <footer class="composer">
-      <div class="pill">Controles rápidos</div>
+      <div class="pill">Base lista para WebRTC: falta offer/answer e ICE candidates.</div>
       <div style="margin-left:auto; display:flex; gap:10px;">
-        <a class="btn" href="dashboard.html">← Volver al chat</a>
+        <a id="backToChat" class="btn" href="dashboard.html">Volver al chat</a>
       </div>
     </footer>
   </main>
 </div>
-</body></html>
+<script type="module" src="videollamada.js"></script>
+</body>
+</html>

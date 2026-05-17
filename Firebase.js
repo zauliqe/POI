@@ -10,6 +10,7 @@ getAuth
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 
+
 // CONFIGURACION
 const firebaseConfig = {
   apiKey: "AIzaSyDorkeua4jkgxMtNs9unE4yJlLSo2DRk-4",
@@ -31,7 +32,6 @@ export const db = getFirestore(app);
 
 // autenticación
 export const auth = getAuth(app);
-
 
 // exportar
 // export { db, auth };

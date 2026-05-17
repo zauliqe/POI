@@ -1,63 +1,81 @@
-<!doctype html><html lang="es"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<link rel="stylesheet" href="styles.css"/><title>Crear Grupo</title></head>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Crear grupo</title>
+</head>
 <body>
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Grupos</div></div></div>
     <nav class="nav">
-      <a href="dashboard.html">Dashboard / Chat</a>
-      <a class="active" href="crear-grupo.html">Crear Grupo</a>
-      <a href="tareas-grupo.html">Tareas del Grupo</a>
+      <a href="dashboard.html">Chats</a>
+      <a class="active" href="crear-grupo.html">Crear grupo</a>
+      <a href="tareas-grupo.html">Tareas del grupo</a>
+      <a href="perfil.html">Perfil</a>
     </nav>
+    <div class="sideSection">
+      <div class="pill">Info</div>
+      <nav class="nav">
+        <a href="mundial.html">Mundial 2026</a>
+        <a href="acerca-de.html">Acerca de</a>
+      </nav>
+    </div>
   </aside>
 
   <main class="main">
     <header class="topbar">
-      <div class="left"><div class="avatar">G</div><div><div class="title">Crear Grupo</div><div class="sub">Privado / público</div></div></div>
-      <div class="right"><a class="btn small" href="dashboard.html">← Chat</a></div>
+      <div class="left"><div class="avatar">G</div><div><div class="title">Crear grupo</div><div class="sub">El chat grupal se crea automáticamente</div></div></div>
+      <div class="right"><a class="btn small" href="dashboard.html">Volver a chats</a></div>
     </header>
 
     <section class="stage">
       <div class="container">
-        <div class="card pad">
-          <div class="grid2">
-            <div>
-              <label class="p">Nombre del grupo</label>
-              <input class="input" placeholder="Ej: Grupo 3" />
+        <div class="grid2">
+          <form id="grupoForm" class="card pad">
+            <h2 class="h2">Datos del grupo</h2>
+            <div style="margin-top:12px;">
+              <label class="p">Nombre</label>
+              <input id="nombreGrupo" class="input" placeholder="Ej: Equipo Mundial" />
             </div>
-            <div>
+            <div style="margin-top:12px;">
               <label class="p">Tipo</label>
-              <select class="select">
-                <option>Privado</option><option>Público</option>
+              <select id="tipoGrupo" class="select">
+                <option>Privado</option>
+                <option>Público</option>
               </select>
             </div>
-          </div>
-          <div style="margin-top:12px;">
-            <label class="p">Descripción</label>
-            <textarea class="textarea" placeholder="¿De qué trata el grupo?"></textarea>
-          </div>
-          <div class="grid2" style="margin-top:12px;">
-            <div>
-              <label class="p">Agregar miembros (placeholder)</label>
-              <input class="input" placeholder="Buscar usuario..." />
+            <div style="margin-top:12px;">
+              <label class="p">Descripción</label>
+              <textarea id="descripcionGrupo" class="textarea" placeholder="¿De qué trata el grupo?"></textarea>
             </div>
-            <div>
-              <label class="p">Foto/ícono</label>
-              <input class="input" placeholder="Subir (UI)" />
+            <div style="margin-top:14px; display:flex; gap:10px;">
+              <button class="btn primary" type="submit">Crear grupo</button>
+              <a class="btn" href="dashboard.html">Cancelar</a>
             </div>
+          </form>
+
+          <div class="card pad">
+            <h2 class="h2">Miembros</h2>
+            <p class="p">Selecciona usuarios registrados para invitarlos.</p>
+            <div id="usuariosList" class="stackList"></div>
           </div>
-          <div style="display:flex; gap:10px; margin-top:14px;">
-            <button class="btn primary" type="button">Crear grupo</button>
-            <a class="btn" href="dashboard.html">Cancelar</a>
-          </div>
+        </div>
+
+        <div class="card pad" style="margin-top:14px;">
+          <h2 class="h2">Mis grupos</h2>
+          <div id="misGrupos" class="list compact"></div>
         </div>
       </div>
     </section>
 
     <footer class="composer">
-      <div class="pill">Tips: nombre corto + icono</div>
+      <div class="pill">Cada grupo aparece en la ventana de chats.</div>
     </footer>
   </main>
 </div>
-</body></html>
+<script type="module" src="grupos.js"></script>
+</body>
+</html>

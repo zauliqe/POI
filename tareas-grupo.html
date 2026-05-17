@@ -1,62 +1,50 @@
-<!doctype html><html lang="es"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<link rel="stylesheet" href="styles.css"/><title>Tareas del Grupo</title></head>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Tareas del grupo</title>
+</head>
 <body>
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Tareas</div></div></div>
     <nav class="nav">
-      <a href="dashboard.html">Dashboard / Chat</a>
-      <a class="active" href="tareas-grupo.html">Tareas del Grupo</a>
-      <a href="crear-tarea.html">Crear Tarea</a>
+      <a href="dashboard.html">Chats</a>
+      <a class="active" href="tareas-grupo.html">Tareas del grupo</a>
+      <a href="crear-grupo.html">Crear grupo</a>
+      <a href="notificaciones.html">Notificaciones</a>
     </nav>
+    <div class="sideSection">
+      <div class="pill">Info</div>
+      <nav class="nav">
+        <a href="mundial.html">Mundial 2026</a>
+        <a href="acerca-de.html">Acerca de</a>
+      </nav>
+    </div>
   </aside>
 
   <main class="main">
     <header class="topbar">
-      <div class="left"><div class="avatar">T</div><div><div class="title">Tareas · Grupo 1</div><div class="sub">Pendientes y completadas</div></div></div>
-      <div class="right"><a class="btn small primary" href="crear-tarea.html">+ Nueva</a></div>
+      <div class="left"><div class="avatar">T</div><div><div class="title">Tareas del grupo</div><div class="sub">Pendientes, avances y entregas</div></div></div>
+      <div class="right">
+        <select id="grupoFiltro" class="select compactSelect"></select>
+        <a id="nuevaTarea" class="btn small primary" href="crear-tarea.html">Nueva</a>
+      </div>
     </header>
 
     <section class="stage">
       <div class="container">
-        <div class="grid3">
-          <div class="card pad">
-            <div class="pill">Pendiente</div>
-            <h2 class="h2" style="margin-top:10px;">Hacer crucigrama</h2>
-            <p class="p">Fecha límite: 10/02/2026</p>
-            <div style="display:flex; gap:10px; margin-top:12px;">
-              <button class="btn small primary">Marcar hecho</button>
-              <button class="btn small">Ver</button>
-            </div>
-          </div>
-
-          <div class="card pad">
-            <div class="pill">En progreso</div>
-            <h2 class="h2" style="margin-top:10px;">Diseño del proyecto</h2>
-            <p class="p">Asignado a: Adrián</p>
-            <div style="display:flex; gap:10px; margin-top:12px;">
-              <button class="btn small">Actualizar</button>
-              <button class="btn small">Comentarios</button>
-            </div>
-          </div>
-
-          <div class="card pad">
-            <div class="pill">Completada</div>
-            <h2 class="h2" style="margin-top:10px;">Revisar notas</h2>
-            <p class="p">✅ Listo</p>
-            <div style="display:flex; gap:10px; margin-top:12px;">
-              <button class="btn small">Ver</button>
-              <button class="btn small danger">Eliminar</button>
-            </div>
-          </div>
-        </div>
+        <div id="tareasList" class="grid3"></div>
       </div>
     </section>
 
     <footer class="composer">
-      <div class="pill">Filtrar: Pendientes / Completadas (UI)</div>
+      <div class="pill">Las tareas se guardan por grupo.</div>
     </footer>
   </main>
 </div>
-</body></html>
+<script type="module" src="tareas.js"></script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 // Importamos lo necesario para guardar en Firestore
-import { auth, db } from "./firebase.js"; 
+import { auth, db } from "./Firebase.js"; 
 import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 

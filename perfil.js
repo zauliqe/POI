@@ -1,69 +1,44 @@
-// perfil.js
-import { auth, db } from "./Firebase.js"; // Asegúrate de que importamos db también
-import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db } from "./Firebase.js";
+import { requireAuth, bindLogout, initials } from "./app.js";
+import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Atrapamos los elementos del HTML por su ID
 const nombreInput = document.getElementById("nombrePerfil");
 const usuarioInput = document.getElementById("usuarioPerfil");
 const correoInput = document.getElementById("correoPerfil");
+const telefonoInput = document.getElementById("telefonoPerfil");
 const btnGuardar = document.getElementById("btnGuardarPerfil");
+const avatar = document.getElementById("perfilAvatar");
+const title = document.getElementById("perfilTitle");
+const subtitle = document.getElementById("perfilSubtitle");
 
-// Variable para recordar quién es el usuario logueado
 let miUID = null;
 
-// 1. Detectamos al usuario logueado y traemos sus datos de Firestore
-onAuthStateChanged(auth, async (user) => {
-  if (user) {
-    miUID = user.uid; // Guardamos su ID secreto
-    
-    // Vamos a Firestore a buscar el documento de ESTE usuario
-    const docRef = doc(db, "usuarios", miUID);
-    const docSnap = await getDoc(docRef);
+requireAuth((user, profile) => {
+  miUID = user.uid;
+  nombreInput.value = profile.nombre || "";
+  usuarioInput.value = profile.usuario || "";
+  correoInput.value = profile.correo || user.email || "";
+  telefonoInput.value = profile.telefono || "";
+  avatar.textContent = initials(profile.nombre || profile.usuario);
+  title.textContent = profile.nombre || "Mi perfil";
+  subtitle.textContent = `@${profile.usuario || "usuario"}`;
+});
 
-    if (docSnap.exists()) {
-      const misDatos = docSnap.data();
-      // Ponemos los datos de la base de datos dentro de las cajitas
-      nombreInput.value = misDatos.nombre;
-      usuarioInput.value = misDatos.usuario;
-      correoInput.value = misDatos.correo;
-    }
-  } else {
-    // Si no está logueado, lo mandamos al login
-    window.location.href = "login.html";
+btnGuardar.addEventListener("click", async () => {
+  if (!miUID) return;
+  try {
+    await updateDoc(doc(db, "usuarios", miUID), {
+      nombre: nombreInput.value.trim(),
+      usuario: usuarioInput.value.trim(),
+      usuarioLower: usuarioInput.value.trim().toLowerCase(),
+      correo: correoInput.value.trim(),
+      telefono: telefonoInput.value.trim()
+    });
+    alert("Tus datos se guardaron correctamente.");
+  } catch (error) {
+    console.error("Error al guardar:", error);
+    alert("Hubo un error al guardar tus datos.");
   }
 });
 
-// 2. Hacer que el botón Guardar funcione
-btnGuardar.addEventListener("click", async () => {
-    if (miUID) {
-        try {
-            // Apuntamos al documento del usuario
-            const docRef = doc(db, "usuarios", miUID);
-            
-            // Actualizamos solo los campos que pudo haber modificado
-            await updateDoc(docRef, {
-                nombre: nombreInput.value,
-                usuario: usuarioInput.value
-            });
-            
-            alert("¡Tus datos se guardaron correctamente!");
-        } catch (error) {
-            console.error("Error al guardar: ", error);
-            alert("Hubo un error al guardar tus datos.");
-        }
-    }
-          // Atrapamos el botón de cerrar sesión
-          const btnCerrar = document.getElementById("btnCerrarSesion");
-
-          // Le damos la funcionalidad
-          btnCerrar.addEventListener("click", async () => {
-          try {
-              await signOut(auth); // Le avisa a Firebase que cierre la sesión
-              window.location.href = "login.html"; // Te regresa a la pantalla de login
-          } catch (error) {
-              console.error("Error al cerrar sesión: ", error);
-          }
-  });
-
-});
+bindLogout();
