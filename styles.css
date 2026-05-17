@@ -325,11 +325,11 @@ a:hover{opacity:.95}
 }
 .msg.mine{
   margin-left:auto;
-  background: rgba(28, 89, 68, .82);
+  background: #0F4D39;
   border-color: rgba(69,214,173,.18);
 }
 .msg.theirs{
-  background: #32a084c4;
+  background: #2D6E5D;
   border-color: rgba(255,255,255,.10);
 }
 .msg.groupMsg.theirs .who{color:rgba(255,255,255,.84)}
