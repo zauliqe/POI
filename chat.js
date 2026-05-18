@@ -72,10 +72,10 @@ let callRef = null;
 let callStream = null;
 let callPeer = null;
 let callDocUnsubscribe = null;
+let callTimeoutId = null;
 let isCaller = false;
 let callOverlayOpen = false;
 let receivedSignals = new Set();
-let streamReceived = false;
 
 callLink.addEventListener("click", handleCallClick);
 
@@ -94,7 +94,7 @@ requireAuth(async (user, userProfile) => {
     showEmpty("Selecciona un contacto o grupo para empezar.");
   }
 
-  // Auto-colgar si salgo de la página o pierdo visibilidad
+  // Auto-colgar si salgo de la pÃƒÂ¡gina o pierdo visibilidad
   window.addEventListener("beforeunload", () => {
     if (callOverlayOpen && callRef) {
       endCall().catch(() => {});
@@ -103,7 +103,7 @@ requireAuth(async (user, userProfile) => {
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && callOverlayOpen && callRef) {
-      addDebugLog("🔌 Página oculta, colgando automáticamente...");
+      addDebugLog("Ã°Å¸â€Å’ PÃƒÂ¡gina oculta, colgando automÃƒÂ¡ticamente...");
       endCall().catch(() => {});
     }
   });
@@ -124,12 +124,12 @@ async function cleanupOldCalls() {
       const callData = doc.data();
       const createdTime = callData.createdAt?.toMillis?.() || 0;
       if (now - createdTime > CALL_TIMEOUT) {
-        addDebugLog(`🧹 Limpiando llamada antigua: ${doc.id}`);
+        addDebugLog(`Ã°Å¸Â§Â¹ Limpiando llamada antigua: ${doc.id}`);
         await setDoc(doc.ref, { estado: "finalizada", limpiadoAutomaticamente: true }, { merge: true });
       }
     });
   } catch (error) {
-    addDebugLog(`⚠️ No se pudo limpiar llamadas antiguas: ${error.message}`);
+    addDebugLog(`Ã¢Å¡Â Ã¯Â¸Â No se pudo limpiar llamadas antiguas: ${error.message}`);
   }
 }
 
@@ -153,7 +153,7 @@ function bindUsers() {
     users.forEach((user) => contacts.appendChild(contactItem(user)));
 
     if (!contacts.children.length) {
-      contacts.innerHTML = `<div class="mutedBlock">Cuando alguien se registre, aparecerá aquí para abrir chat individual.</div>`;
+      contacts.innerHTML = `<div class="mutedBlock">Cuando alguien se registre, aparecerÃƒÂ¡ aquÃƒÂ­ para abrir chat individual.</div>`;
     }
   }, (error) => {
     console.error("Error al cargar usuarios:", error);
@@ -170,7 +170,7 @@ function bindGroups() {
     });
 
     if (!groups.children.length) {
-      groups.innerHTML = `<a class="item" href="crear-grupo.html"><div class="avatar">+</div><div><div class="name">Crear grupo</div><div class="meta">Todavía no tienes grupos</div></div></a>`;
+      groups.innerHTML = `<a class="item" href="crear-grupo.html"><div class="avatar">+</div><div><div class="name">Crear grupo</div><div class="meta">TodavÃƒÂ­a no tienes grupos</div></div></a>`;
     }
   }, (error) => {
     console.error("Error al cargar grupos:", error);
@@ -188,7 +188,7 @@ function contactItem(user) {
     <div class="avatar withStatus">${initials(user.nombre || user.usuario)}<span class="statusDot ${online ? "online" : ""}"></span></div>
     <div class="itemText">
       <div class="name">${escapeHtml(user.nombre || user.usuario || "Usuario")}</div>
-      <div class="meta">${online ? "En línea" : "Desconectado"} · @${escapeHtml(user.usuario || "usuario")}</div>
+      <div class="meta">${online ? "En lÃƒÂ­nea" : "Desconectado"} Ã‚Â· @${escapeHtml(user.usuario || "usuario")}</div>
     </div>
   `;
   item.addEventListener("click", async (event) => {
@@ -208,7 +208,7 @@ function groupItem(group) {
     <div class="avatar">${initials(group.nombre || "Grupo")}</div>
     <div class="itemText">
       <div class="name">${escapeHtml(group.nombre || "Grupo")}</div>
-      <div class="meta">${group.miembros?.length || 0} miembros · ${escapeHtml(group.tipo || "Privado")}</div>
+      <div class="meta">${group.miembros?.length || 0} miembros Ã‚Â· ${escapeHtml(group.tipo || "Privado")}</div>
     </div>
   `;
   item.addEventListener("click", async (event) => {
@@ -241,7 +241,7 @@ async function openConversation(id) {
 
   const snap = await getDoc(doc(db, "conversaciones", id));
   if (!snap.exists()) {
-    showEmpty("La conversación no existe todavía. Selecciona un usuario o crea un grupo.");
+    showEmpty("La conversaciÃƒÂ³n no existe todavÃƒÂ­a. Selecciona un usuario o crea un grupo.");
     return;
   }
 
@@ -279,7 +279,7 @@ function handleCallClick(event) {
   }
   createCallRequest(otherUid).catch((error) => {
     console.error("Error al iniciar llamada:", error);
-    alert("No se pudo iniciar la videollamada. Intenta de nuevo más tarde.");
+    alert("No se pudo iniciar la videollamada. Intenta de nuevo mÃƒÂ¡s tarde.");
   });
 }
 
@@ -296,22 +296,22 @@ async function createCallRequest(calleeUid) {
     const TIMEOUT = 2 * 60 * 1000; // 2 minutos
     
     if (now - createdTime > TIMEOUT) {
-      addDebugLog(`🧹 Limpiando llamada antigua (${Math.round((now - createdTime) / 1000)}s)...`);
+      addDebugLog(`Ã°Å¸Â§Â¹ Limpiando llamada antigua (${Math.round((now - createdTime) / 1000)}s)...`);
       try {
         await setDoc(callRef, { estado: "finalizada", limpiadoAutomaticamente: true }, { merge: true });
-        addDebugLog(`✅ Llamada antigua limpiada`);
+        addDebugLog(`Ã¢Å“â€¦ Llamada antigua limpiada`);
       } catch (error) {
-        addDebugLog(`⚠️ Error limpiando: ${error.message}`);
+        addDebugLog(`Ã¢Å¡Â Ã¯Â¸Â Error limpiando: ${error.message}`);
       }
     } else {
       const remainingSeconds = Math.round((TIMEOUT - (now - createdTime)) / 1000);
       alert(`Ya hay una llamada en curso. Intenta en ${remainingSeconds} segundos.`);
-      addDebugLog(`⏳ Llamada en curso, no se puede crear otra (${remainingSeconds}s)`);
+      addDebugLog(`Ã¢ÂÂ³ Llamada en curso, no se puede crear otra (${remainingSeconds}s)`);
       return;
     }
   }
 
-  addDebugLog(`📞 Creando nueva llamada...`);
+  addDebugLog(`Ã°Å¸â€œÅ¾ Creando nueva llamada...`);
   await setDoc(callRef, {
     conversationId: callId,
     caller: me.uid,
@@ -323,7 +323,7 @@ async function createCallRequest(calleeUid) {
     updatedAt: serverTimestamp()
   }, { merge: true });
 
-  addDebugLog(`✅ Documento de llamada creado`);
+  addDebugLog(`Ã¢Å“â€¦ Documento de llamada creado`);
   callSessionId = callId;
   isCaller = true;
   setupCallSession(callId, activeConversation.nombres?.[calleeUid] || "Usuario");
@@ -332,17 +332,17 @@ async function createCallRequest(calleeUid) {
 function setupIncomingCallBanner() {
   incomingCallBanner.id = "incomingCall";
   incomingCallBanner.className = "incomingCall hidden";
-  addDebugLog(`🔔 Configurando banner de llamada entrante...`);
+  addDebugLog(`Ã°Å¸â€â€ Configurando banner de llamada entrante...`);
   if (headerElement?.parentNode) {
     headerElement.parentNode.insertBefore(incomingCallBanner, headerElement.nextSibling);
-    addDebugLog(`✅ Banner insertado en el DOM`);
+    addDebugLog(`Ã¢Å“â€¦ Banner insertado en el DOM`);
   } else {
-    addDebugLog(`❌ headerElement o su parentNode no existen`);
+    addDebugLog(`Ã¢ÂÅ’ headerElement o su parentNode no existen`);
   }
 }
 
 function listenIncomingCalls() {
-  addDebugLog(`🔊 Iniciando escucha de llamadas entrantes para ${me.uid}...`);
+  addDebugLog(`Ã°Å¸â€Å  Iniciando escucha de llamadas entrantes para ${me.uid}...`);
   const incomingQuery = query(
     collection(db, "llamadas"),
     where("callee", "==", me.uid),
@@ -350,19 +350,19 @@ function listenIncomingCalls() {
   );
 
   onSnapshot(incomingQuery, (snapshot) => {
-    addDebugLog(`📥 Snapshot de llamadas entrantes: ${snapshot.docs.length} documento(s)`);
+    addDebugLog(`Ã°Å¸â€œÂ¥ Snapshot de llamadas entrantes: ${snapshot.docs.length} documento(s)`);
     if (snapshot.empty) {
-      addDebugLog(`⚠️ Sin llamadas entrantes en este momento`);
+      addDebugLog(`Ã¢Å¡Â Ã¯Â¸Â Sin llamadas entrantes en este momento`);
       hideIncomingCall();
       return;
     }
 
     const callDoc = snapshot.docs[0];
     const callData = callDoc.data();
-    addDebugLog(`🔔 LLAMADA ENTRANTE DETECTADA: de ${callData.callerName}, estado=${callData.estado}`);
+    addDebugLog(`Ã°Å¸â€â€ LLAMADA ENTRANTE DETECTADA: de ${callData.callerName}, estado=${callData.estado}`);
     showIncomingCall(callDoc.id, callData);
   }, (error) => {
-    addDebugLog(`❌ Error escuchando llamadas entrantes: ${error.message}`);
+    addDebugLog(`Ã¢ÂÅ’ Error escuchando llamadas entrantes: ${error.message}`);
     console.error("Error al escuchar llamadas entrantes:", error);
   });
 }
@@ -371,59 +371,66 @@ function setupCallSession(callId, remoteName) {
   if (!callOverlay) return;
   callSessionId = callId;
   callOverlayOpen = true;
-  streamReceived = false;
   callOverlay.classList.remove("hidden");
   callHeaderTitle.textContent = `Videollamada con ${remoteName}`;
   callHeaderSub.textContent = isCaller ? "Llamando..." : "Aceptando llamada...";
   callStateLabel.textContent = "Conectando...";
   debugPanel.style.display = "block";
-  addDebugLog(`🚀 Iniciando sesión. Caller: ${isCaller}`);
+  addDebugLog(`Ã°Å¸Å¡â‚¬ Iniciando sesiÃƒÂ³n. Caller: ${isCaller}`);
 
   callRef = doc(db, "llamadas", callId);
+  
+  // Timeout de 60 segundos: si no se conecta, finalizar automÃƒÂ¡ticamente
+  callTimeoutId = setTimeout(async () => {
+    if (callPeer && !callPeer.connected) {
+      addDebugLog(`Ã¢ÂÂ±Ã¯Â¸Â Timeout: no se conectÃƒÂ³ despuÃƒÂ©s de 60s, finalizando...`);
+      await endCall();
+    }
+  }, 60000);
 
   startLocalMedia()
     .then(async () => {
       createPeerConnection();
       listenCallDocument();
-      addDebugLog(`✅ Sesión iniciada`);
+      addDebugLog(`Ã¢Å“â€¦ SesiÃƒÂ³n iniciada`);
     })
     .catch((error) => {
-      addDebugLog(`❌ Error: ${error.message}`);
-      callStateLabel.textContent = "No se pudo acceder a cámara/micrófono.";
+      addDebugLog(`Ã¢ÂÅ’ Error: ${error.message}`);
+      callStateLabel.textContent = "No se pudo acceder a cÃƒÂ¡mara/micrÃƒÂ³fono.";
     });
 }
 
 async function startLocalMedia() {
   if (callStream) {
-    addDebugLog(`⚠️ Stream local ya existe`);
+    addDebugLog(`Ã¢Å¡Â Ã¯Â¸Â Stream local ya existe`);
     return;
   }
   try {
-    addDebugLog(`🎥 Solicitando getUserMedia...`);
+    addDebugLog(`Ã°Å¸Å½Â¥ Solicitando getUserMedia...`);
     callStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    addDebugLog(`✅ Stream obtenido: ${callStream?.getTracks().length} tracks`);
+    addDebugLog(`Ã¢Å“â€¦ Stream obtenido: ${callStream?.getTracks().length} tracks`);
     callLocalVideo.srcObject = callStream;
     await callLocalVideo.play().catch(() => {});
-    addDebugLog(`✅ Video local mostrado`);
+    addDebugLog(`Ã¢Å“â€¦ Video local mostrado`);
   } catch (error) {
-    addDebugLog(`❌ Error getUserMedia: ${error.message}`);
+    addDebugLog(`Ã¢ÂÅ’ Error getUserMedia: ${error.message}`);
     throw error;
   }
 }
 
 function createPeerConnection() {
   if (callPeer || !callStream) {
-    addDebugLog(`❌ createPeerConnection: peer ya existe o sin stream`);
+    addDebugLog(`Ã¢ÂÅ’ createPeerConnection: peer ya existe o sin stream`);
     return;
   }
   const SimplePeer = window.SimplePeer;
   if (!SimplePeer) {
-    addDebugLog(`❌ SimplePeer NO DISPONIBLE en window`);
-    callStateLabel.textContent = "SimplePeer no cargó.";
+    addDebugLog(`Ã¢ÂÅ’ SimplePeer NO DISPONIBLE en window`);
+    callStateLabel.textContent = "SimplePeer no cargÃƒÂ³.";
     return;
   }
 
-  addDebugLog(`✅ SimplePeer disponible. Initiator: ${isCaller}`);
+  addDebugLog(`Ã¢Å“â€¦ SimplePeer disponible. Initiator: ${isCaller}`);
   
   callPeer = new SimplePeer({
     initiator: isCaller,
@@ -442,11 +449,11 @@ function createPeerConnection() {
     }
   });
 
-  addDebugLog(`📡 SimplePeer creado. Stream local: ${callStream?.getTracks().length} tracks`);
+  addDebugLog(`Ã°Å¸â€œÂ¡ SimplePeer creado. Stream local: ${callStream?.getTracks().length} tracks`);
 
   callPeer.on("signal", async (signalData) => {
     if (!callRef) return;
-    addDebugLog(`📤 Signal emitido: ${signalData.type}`);
+    addDebugLog(`Ã°Å¸â€œÂ¤ Signal emitido: ${signalData.type}`);
     try {
       await setDoc(callRef, {
         signals: arrayUnion({
@@ -455,116 +462,125 @@ function createPeerConnection() {
           timestamp: new Date().toISOString()
         })
       }, { merge: true });
-      addDebugLog(`✅ Signal guardado en Firestore`);
+      addDebugLog(`Ã¢Å“â€¦ Signal guardado en Firestore`);
     } catch (error) {
-      addDebugLog(`❌ Error guardando signal: ${error.message}`);
+      addDebugLog(`Ã¢ÂÅ’ Error guardando signal: ${error.message}`);
     }
   });
 
   callPeer.on("stream", (remoteStream) => {
-    addDebugLog(`🎥 Stream remoto recibido: ${remoteStream?.getTracks().length} tracks`);
-    streamReceived = true;
+    addDebugLog(`🎥 STREAM REMOTO RECIBIDO: ${remoteStream?.getTracks().length} tracks`);
     if (remoteStream) {
       callRemoteVideo.srcObject = remoteStream;
       callRemoteVideo.play().catch(() => {});
       callStateLabel.textContent = "Conectado";
       callHeaderSub.textContent = "Videollamada activa";
-      addDebugLog(`✅ Video remoto mostrado`);
+      addDebugLog(`✅ VIDEO REMOTO MOSTRADO`);
     }
   });
 
   callPeer.on("connect", () => {
-    addDebugLog(`✅ Peer conectado exitosamente`);
+    addDebugLog(`✅ PEER CONECTADO - Videollamada establecida`);
+    if (callTimeoutId) {
+      clearTimeout(callTimeoutId);
+      callTimeoutId = null;
+      addDebugLog(`⏱️ Timeout cancelado - conexión exitosa`);
+    }
     callStateLabel.textContent = "Conectado";
     callHeaderSub.textContent = "Videollamada activa";
   });
 
   callPeer.on("data", (data) => {
-    addDebugLog(`📨 Datos recibidos: ${data}`);
+    addDebugLog(`Ã°Å¸â€œÂ¨ Datos recibidos: ${data}`);
   });
 
   callPeer.on("close", () => {
-    addDebugLog(`🔌 Peer cerrado - TRIGGER`);
-    if (callOverlayOpen) {
-      callStateLabel.textContent = "Llamada finalizada.";
-      setTimeout(() => {
-        closeOverlay();
-        cleanupCallSession();
-      }, 2000);
-    }
+    addDebugLog(`🔌 CIERRE SIMPLEPEER DETECTADO - NO cerrando overlay`);
+    // NO cerramos el overlay aquí - solo SimplePeer se cerró internamente
+    // La pantalla se cierra cuando cuelga el usuario o el otro lado finaliza
   });
 
   callPeer.on("error", (err) => {
-    addDebugLog(`❌ Error SimplePeer: ${err.message}`);
+    addDebugLog(`❌ ERROR SIMPLEPEER: ${err.message}`);
     callStateLabel.textContent = "Error: " + err.message;
   });
 }
 
 function listenCallDocument() {
   if (callDocUnsubscribe) callDocUnsubscribe();
-  addDebugLog(`👂 Escuchando documento de llamada`);
+  addDebugLog(`Ã°Å¸â€˜â€š Escuchando documento de llamada`);
   
   callDocUnsubscribe = onSnapshot(callRef, async (snapshot) => {
     if (!snapshot.exists()) {
-      addDebugLog(`⚠️ Documento no existe`);
+      addDebugLog(`Ã¢Å¡Â Ã¯Â¸Â Documento de llamada no existe`);
       return;
     }
     const data = snapshot.data();
-    addDebugLog(`📄 Estado: ${data.estado}, signals: ${data.signals?.length || 0}`);
+    addDebugLog(`Ã°Å¸â€œâ€ž Estado: ${data.estado}, signals: ${data.signals?.length || 0}, peer: ${callPeer ? "Ã¢Å“â€¦" : "Ã¢ÂÅ’"}`);
 
-    // Solo procesar estados finales si fueron iniciados por el otro usuario
+    // Solo cerrar si fue rechazada O finalizada por el otro usuario
     if (data.estado === "rechazada") {
-      addDebugLog(`🚫 Llamada rechazada`);
-      callStateLabel.textContent = "Rechazada.";
+      addDebugLog(`Ã°Å¸Å¡Â« Llamada rechazada`);
+      callStateLabel.textContent = "La llamada fue rechazada.";
       setTimeout(() => {
         closeOverlay();
         cleanupCallSession();
-      }, 1500);
+      }, 2000);
       return;
     }
 
     if (data.estado === "finalizada" && data.finalizadaPor !== me.uid) {
-      addDebugLog(`🏁 Finalizada por: ${data.finalizadaPor}`);
-      callStateLabel.textContent = "Terminada.";
+      addDebugLog(`Ã°Å¸ÂÂ Llamada finalizada por el otro usuario`);
+      callStateLabel.textContent = "La llamada terminÃƒÂ³.";
       setTimeout(() => {
         closeOverlay();
         cleanupCallSession();
-      }, 1500);
+      }, 2000);
       return;
     }
 
-    // Si el documento pasó a "activa" pero no tuvimos "stream" aún, esperar
-    if (data.estado === "activa" && !streamReceived) {
-      addDebugLog(`⏳ Estado activa, esperando stream...`);
-      callStateLabel.textContent = "Esperando video...";
-    }
-
-    // Procesar signals
+    // Procesar signals solo si callPeer existe
     const signals = Array.isArray(data.signals) ? data.signals : [];
+    let newSignals = 0;
+    
     if (callPeer && signals.length > 0) {
       for (const signalItem of signals) {
         if (!signalItem || signalItem.from === me.uid) continue;
         const signalKey = JSON.stringify(signalItem.signal);
         if (receivedSignals.has(signalKey)) continue;
         receivedSignals.add(signalKey);
-        addDebugLog(`📥 Signal: ${signalItem.signal.type}`);
+        newSignals++;
+        addDebugLog(`Ã°Å¸â€œÂ¥ Signal remoto: ${signalItem.signal.type}`);
         try {
           callPeer.signal(signalItem.signal);
-          addDebugLog(`✅ Signal aplicado`);
+          addDebugLog(`Ã¢Å“â€¦ Signal aplicado`);
         } catch (error) {
-          addDebugLog(`❌ Error signal: ${error.message}`);
+          addDebugLog(`Ã¢ÂÅ’ Error aplicando signal: ${error.message}`);
         }
       }
+      if (newSignals > 0) {
+        addDebugLog(`Ã°Å¸â€œÂ¦ ${newSignals} signals procesados`);
+      }
+    } else if (!callPeer && signals.length > 0) {
+      addDebugLog(`Ã¢ÂÂ³ callPeer no existe aÃƒÂºn, esperando...`);
+    }
+
+    if (!isCaller && data.estado === "activa") {
+      addDebugLog(`Ã°Å¸â€œÅ¾ Callee: llamada activa, esperando conexiÃƒÂ³n...`);
+      callStateLabel.textContent = "Conectando...";
+    }
+
+    if (isCaller && data.estado === "activa") {
+      addDebugLog(`Ã°Å¸â€œÅ¾ Caller: llamada activa, esperando conexiÃƒÂ³n...`);
+      callStateLabel.textContent = "Conectando...";
     }
   }, (error) => {
-    addDebugLog(`❌ Error listener: ${error.message}`);
+    addDebugLog(`Ã¢ÂÅ’ Error escuchando documento: ${error.message}`);
   });
 }
 
 async function endCall() {
-  addDebugLog(`📞 Colgando...`);
-  callOverlayOpen = false; // Prevenir que close handler lo haga de nuevo
-  
+  addDebugLog(`Ã°Å¸â€œÅ¾ Colgando llamada...`);
   if (callRef) {
     try {
       await setDoc(callRef, {
@@ -572,12 +588,11 @@ async function endCall() {
         finalizadaPor: me.uid,
         updatedAt: serverTimestamp()
       }, { merge: true });
-      addDebugLog(`✅ Marcado finalizado`);
+      addDebugLog(`Ã¢Å“â€¦ Llamada marcada finalizada`);
     } catch (error) {
-      addDebugLog(`⚠️ Error finalizando: ${error.message}`);
+      addDebugLog(`Ã¢Å¡Â Ã¯Â¸Â Error finalizando: ${error.message}`);
     }
   }
-  
   closeOverlay();
   await cleanupCallSession();
 }
@@ -587,45 +602,47 @@ function hideCallOverlay() {
 }
 
 function closeOverlay() {
-  if (!callOverlay || !callOverlayOpen) return;
+  if (!callOverlay) return;
   callOverlay.classList.add("hidden");
   callOverlayOpen = false;
-  addDebugLog(`👁️ Overlay cerrado`);
 }
 
 function cleanupCallSession() {
-  addDebugLog(`🧹 Limpiando sesión...`);
+  addDebugLog(`Ã°Å¸Â§Â¹ Limpiando sesiÃƒÂ³n...`);
+  if (callTimeoutId) {
+    clearTimeout(callTimeoutId);
+    callTimeoutId = null;
+  }
   if (callDocUnsubscribe) callDocUnsubscribe();
   callDocUnsubscribe = null;
   receivedSignals.clear();
-  streamReceived = false;
   if (callPeer) {
     callPeer.destroy();
     callPeer = null;
-    addDebugLog(`✅ SimplePeer destruido`);
+    addDebugLog(`Ã¢Å“â€¦ SimplePeer destruido`);
   }
   if (callStream) {
     callStream.getTracks().forEach((track) => track.stop());
     callStream = null;
-    addDebugLog(`✅ Stream detenido`);
+    addDebugLog(`Ã¢Å“â€¦ Stream detenido`);
   }
   callSessionId = null;
   callRef = null;
-  addDebugLog(`✅ Sesión limpiada`);
+  addDebugLog(`Ã¢Å“â€¦ SesiÃƒÂ³n limpiada`);
 }
 
 function showIncomingCall(callId, callData) {
   if (activeIncomingCallId === callId) {
-    addDebugLog(`⏭️ Llamada ${callId} ya está activa, ignorando duplicado`);
+    addDebugLog(`Ã¢ÂÂ­Ã¯Â¸Â Llamada ${callId} ya estÃƒÂ¡ activa, ignorando duplicado`);
     return;
   }
-  addDebugLog(`🎯 Mostrando notificación de llamada entrante de ${callData.callerName}`);
+  addDebugLog(`Ã°Å¸Å½Â¯ Mostrando notificaciÃƒÂ³n de llamada entrante de ${callData.callerName}`);
   activeIncomingCallId = callId;
 
   incomingCallBanner.innerHTML = `
     <div style="flex:1; min-width:0;">
       <strong style="display:block; color:var(--text);">Llamada entrante</strong>
-      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien")} te está llamando.</span>
+      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien")} te estÃƒÂ¡ llamando.</span>
     </div>
     <div class="callActions">
       <button class="btn small primary" id="acceptCallBtn">Aceptar</button>
@@ -634,22 +651,22 @@ function showIncomingCall(callId, callData) {
   `;
 
   incomingCallBanner.classList.remove("hidden");
-  addDebugLog(`✅ Banner visible, botones disponibles`);
+  addDebugLog(`Ã¢Å“â€¦ Banner visible, botones disponibles`);
 
   const acceptBtn = document.getElementById("acceptCallBtn");
   const rejectBtn = document.getElementById("rejectCallBtn");
-  addDebugLog(`🔘 Botones encontrados: Accept=${acceptBtn ? "✅" : "❌"}, Reject=${rejectBtn ? "✅" : "❌"}`);
+  addDebugLog(`Ã°Å¸â€Ëœ Botones encontrados: Accept=${acceptBtn ? "Ã¢Å“â€¦" : "Ã¢ÂÅ’"}, Reject=${rejectBtn ? "Ã¢Å“â€¦" : "Ã¢ÂÅ’"}`);
 
   if (acceptBtn) {
     acceptBtn.onclick = async () => {
-      addDebugLog(`✅ Llamada aceptada, actualizando estado...`);
+      addDebugLog(`Ã¢Å“â€¦ Llamada aceptada, actualizando estado...`);
       await setDoc(doc(db, "llamadas", callId), {
         estado: "activa",
         acceptedAt: serverTimestamp(),
         aceptadaPor: me.uid,
         updatedAt: serverTimestamp()
       }, { merge: true });
-      addDebugLog(`✅ Estado actualizado a 'activa', iniciando sesión...`);
+      addDebugLog(`Ã¢Å“â€¦ Estado actualizado a 'activa', iniciando sesiÃƒÂ³n...`);
       hideIncomingCall();
       callSessionId = callId;
       isCaller = false;
@@ -680,7 +697,7 @@ toggleCallMic?.addEventListener("click", () => {
   const audioTrack = callStream.getAudioTracks()[0];
   if (!audioTrack) return;
   audioTrack.enabled = !audioTrack.enabled;
-  toggleCallMic.textContent = audioTrack.enabled ? "Micrófono" : "Micrófono off";
+  toggleCallMic.textContent = audioTrack.enabled ? "MicrÃƒÂ³fono" : "MicrÃƒÂ³fono off";
 });
 
 toggleCallCamera?.addEventListener("click", () => {
@@ -688,7 +705,7 @@ toggleCallCamera?.addEventListener("click", () => {
   const videoTrack = callStream.getVideoTracks()[0];
   if (!videoTrack) return;
   videoTrack.enabled = !videoTrack.enabled;
-  toggleCallCamera.textContent = videoTrack.enabled ? "Cámara" : "Cámara off";
+  toggleCallCamera.textContent = videoTrack.enabled ? "CÃƒÂ¡mara" : "CÃƒÂ¡mara off";
 });
 
 endCallButton?.addEventListener("click", async () => {
@@ -706,7 +723,7 @@ function bindMessages(id) {
   stopMessages = onSnapshot(q, (snapshot) => {
     chat.innerHTML = "";
     if (snapshot.empty) {
-      chat.innerHTML = `<div class="emptyState">Aún no hay mensajes. Escribe el primero.</div>`;
+      chat.innerHTML = `<div class="emptyState">AÃƒÂºn no hay mensajes. Escribe el primero.</div>`;
       return;
     }
 
@@ -758,7 +775,7 @@ async function sendMessage() {
     input.focus();
   } catch (error) {
     console.error("Error al enviar mensaje:", error);
-    alert("No se pudo enviar el mensaje. Revisa que hayas iniciado sesión y que Firestore permita escritura.");
+    alert("No se pudo enviar el mensaje. Revisa que hayas iniciado sesiÃƒÂ³n y que Firestore permita escritura.");
   } finally {
     sendButton.disabled = false;
   }
