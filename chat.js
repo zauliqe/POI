@@ -21,6 +21,8 @@ const title = document.getElementById("chatTitle");
 const subtitle = document.getElementById("chatSubtitle");
 const headerAvatar = document.getElementById("chatAvatar");
 const callLink = document.getElementById("callLink");
+const headerElement = document.querySelector(".topbar");
+const incomingCallBanner = document.createElement("div");
 
 const userColors = ["#256f5c", "#355f9d", "#7a4d92", "#8a6333", "#8a3f5d", "#4f6f36", "#6b5a2f"];
 
@@ -28,12 +30,17 @@ let me = null;
 let profile = null;
 let activeConversation = null;
 let stopMessages = null;
+let activeIncomingCallId = null;
+
+callLink.addEventListener("click", handleCallClick);
 
 requireAuth(async (user, userProfile) => {
   me = user;
   profile = userProfile;
   bindUsers();
   bindGroups();
+  setupIncomingCallBanner();
+  listenIncomingCalls();
 
   const conversationFromUrl = currentConversationId();
   if (conversationFromUrl) {
@@ -173,6 +180,122 @@ function renderHeader() {
   }
   callLink.href = `videollamada.html?c=${activeConversation.id}`;
   callLink.classList.remove("disabled");
+}
+
+function handleCallClick(event) {
+  event.preventDefault();
+  if (callLink.classList.contains("disabled") || !activeConversation) return;
+  if (activeConversation.tipo !== "privado") {
+    alert("La videollamada solo funciona en chats privados.");
+    return;
+  }
+  const otherUid = activeConversation.miembros?.find((uid) => uid !== me.uid);
+  if (!otherUid) {
+    alert("No se pudo detectar al otro participante.");
+    return;
+  }
+  createCallRequest(otherUid).catch((error) => {
+    console.error("Error al iniciar llamada:", error);
+    alert("No se pudo iniciar la videollamada. Intenta de nuevo más tarde.");
+  });
+}
+
+async function createCallRequest(calleeUid) {
+  const callRef = doc(db, "llamadas", activeConversation.id);
+  const callSnap = await getDoc(callRef);
+  const previous = callSnap.exists() ? callSnap.data() : null;
+  if (previous?.estado === "invitando" || previous?.estado === "activa") {
+    alert("Ya hay una llamada en curso en esta conversación.");
+    return;
+  }
+
+  await setDoc(callRef, {
+    conversationId: activeConversation.id,
+    caller: me.uid,
+    callee: calleeUid,
+    callerName: profile.nombre || profile.usuario || "Yo",
+    calleeName: activeConversation.nombres?.[calleeUid] || "Usuario",
+    estado: "invitando",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  window.location.href = `videollamada.html?c=${activeConversation.id}`;
+}
+
+function setupIncomingCallBanner() {
+  incomingCallBanner.id = "incomingCall";
+  incomingCallBanner.className = "incomingCall hidden";
+  if (headerElement?.parentNode) {
+    headerElement.parentNode.insertBefore(incomingCallBanner, headerElement.nextSibling);
+  }
+}
+
+function listenIncomingCalls() {
+  const incomingQuery = query(
+    collection(db, "llamadas"),
+    where("callee", "==", me.uid),
+    where("estado", "==", "invitando")
+  );
+
+  onSnapshot(incomingQuery, (snapshot) => {
+    if (snapshot.empty) {
+      hideIncomingCall();
+      return;
+    }
+
+    const callDoc = snapshot.docs[0];
+    showIncomingCall(callDoc.id, callDoc.data());
+  }, (error) => {
+    console.error("Error al escuchar llamadas entrantes:", error);
+  });
+}
+
+function showIncomingCall(callId, callData) {
+  if (activeIncomingCallId === callId) return;
+  activeIncomingCallId = callId;
+
+  incomingCallBanner.innerHTML = `
+    <div style="flex:1; min-width:0;">
+      <strong style="display:block; color:var(--text);">Llamada entrante</strong>
+      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien") } te está llamando.</span>
+    </div>
+    <div class="callActions">
+      <button class="btn small primary" id="acceptCallBtn">Aceptar</button>
+      <button class="btn small danger" id="rejectCallBtn">Rechazar</button>
+    </div>
+  `;
+
+  incomingCallBanner.classList.remove("hidden");
+
+  const acceptBtn = document.getElementById("acceptCallBtn");
+  const rejectBtn = document.getElementById("rejectCallBtn");
+
+  acceptBtn?.addEventListener("click", async () => {
+    await setDoc(doc(db, "llamadas", callId), {
+      estado: "activa",
+      acceptedAt: serverTimestamp(),
+      aceptadaPor: me.uid,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    hideIncomingCall();
+    window.location.href = `videollamada.html?c=${callId}`;
+  });
+
+  rejectBtn?.addEventListener("click", async () => {
+    await setDoc(doc(db, "llamadas", callId), {
+      estado: "rechazada",
+      rechazadoPor: me.uid,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    hideIncomingCall();
+  });
+}
+
+function hideIncomingCall() {
+  activeIncomingCallId = null;
+  incomingCallBanner.classList.add("hidden");
+  incomingCallBanner.innerHTML = "";
 }
 
 function bindMessages(id) {

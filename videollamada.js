@@ -6,13 +6,11 @@ import {
   doc,
   getDoc,
   onSnapshot,
-  query,
   serverTimestamp,
   setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const localVideo = document.getElementById("localVideo");
-const remotePanel = document.getElementById("remotePanel");
 const remoteVideo = document.getElementById("remoteVideo");
 const statusText = document.getElementById("callStatus");
 const micButton = document.getElementById("toggleMic");
@@ -24,25 +22,23 @@ const backToChat = document.getElementById("backToChat");
 let me = null;
 let stream = null;
 let pc = null;
-let callDoc = null;
 let conversationId = currentConversationId();
+let callRef = null;
+let remoteCandidatesUnsubscribe = null;
+let callDocUnsubscribe = null;
 let isCaller = false;
-let localAudioTrack = null;
-let localVideoTrack = null;
-let offerCandidatesCollection = null;
-let answerCandidatesCollection = null;
-let answerListener = null;
-let candidatesListener = null;
-let callDocListener = null;
+let answerCreated = false;
 
 requireAuth(async (user) => {
   me = user;
   if (!conversationId) {
-    statusText.textContent = "Abre la llamada desde un chat para enlazarla.";
+    statusText.textContent = "No se encontró identificador de videollamada.";
     return;
   }
 
   backToChat.href = `dashboard.html?c=${conversationId}`;
+  callRef = doc(db, "llamadas", conversationId);
+
   await startCamera();
   await initCall();
 });
@@ -51,12 +47,42 @@ async function startCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     localVideo.srcObject = stream;
-    localAudioTrack = stream.getAudioTracks()[0] || null;
-    localVideoTrack = stream.getVideoTracks()[0] || null;
-    statusText.textContent = "Cámara lista. Esperando la llamada.";
+    localVideo.play().catch(() => {});
+    statusText.textContent = "Cámara lista. Preparando llamada...";
   } catch (error) {
     console.error(error);
     statusText.textContent = "No se pudo acceder a cámara o micrófono.";
+  }
+}
+
+async function initCall() {
+  const snap = await getDoc(callRef);
+  if (!snap.exists()) {
+    statusText.textContent = "No se encontró la llamada. Inicia la videollamada desde el chat.";
+    return;
+  }
+
+  const callData = snap.data();
+  isCaller = callData.caller === me.uid;
+  const remoteName = isCaller ? callData.calleeName : callData.callerName;
+  callTitle.textContent = remoteName ? `Videollamada con ${remoteName}` : "Videollamada";
+
+  createPeerConnection();
+  listenToCallDocument();
+  listenRemoteIceCandidates();
+
+  if (isCaller) {
+    if (!callData.offer) {
+      await createOffer();
+    } else {
+      statusText.textContent = "Esperando respuesta...";
+    }
+  } else {
+    if (callData.offer) {
+      await answerCall(callData.offer);
+    } else {
+      statusText.textContent = "Esperando oferta del llamante...";
+    }
   }
 }
 
@@ -66,171 +92,153 @@ function createPeerConnection() {
   });
 
   pc.onicecandidate = async (event) => {
-    if (!event.candidate) return;
-    const candidateData = event.candidate.toJSON();
-    const targetCollection = isCaller ? offerCandidatesCollection : answerCandidatesCollection;
-    await addDoc(targetCollection, { candidate: candidateData, createdAt: serverTimestamp() });
+    if (event.candidate) {
+      await addIceCandidate(event.candidate);
+    }
   };
 
   pc.ontrack = (event) => {
-    if (event.streams && event.streams[0]) {
-      remoteVideo.srcObject = event.streams[0];
-      remoteVideo.classList.remove("hidden");
-      remotePanel.classList.add("hidden");
-      statusText.textContent = "Conexión establecida. Video remoto activo.";
+    const [remoteStream] = event.streams;
+    if (remoteStream) {
+      remoteVideo.srcObject = remoteStream;
+      remoteVideo.play().catch(() => {});
+      statusText.textContent = "Conectado";
     }
   };
 
   pc.onconnectionstatechange = () => {
     if (!pc) return;
     if (pc.connectionState === "connected") {
-      statusText.textContent = "Conectado. Conversación establecida.";
+      statusText.textContent = "Conectado";
     } else if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
-      statusText.textContent = "Conexión perdida. Esperando reconexión...";
+      statusText.textContent = "La conexión se interrumpió.";
     } else if (pc.connectionState === "closed") {
       statusText.textContent = "Llamada finalizada.";
     }
   };
 
-  return pc;
+  stream?.getTracks().forEach((track) => pc.addTrack(track, stream));
 }
 
-async function initCall() {
-  callDoc = doc(db, "llamadas", conversationId);
-  const callSnapshot = await getDoc(callDoc);
-  pc = createPeerConnection();
-
-  if (!stream) {
-    statusText.textContent = "No hay cámara local disponible.";
-    return;
-  }
-
-  stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-  offerCandidatesCollection = collection(callDoc, "callerCandidates");
-  answerCandidatesCollection = collection(callDoc, "calleeCandidates");
-
-  if (!callSnapshot.exists() || !callSnapshot.data()?.offer) {
-    isCaller = true;
-    statusText.textContent = "Creando oferta de videollamada...";
-    await startCallerFlow();
-  } else {
-    isCaller = false;
-    statusText.textContent = "Recibiendo la llamada...";
-    await startCalleeFlow(callSnapshot.data());
-  }
-
-  listenCallState();
-}
-
-async function startCallerFlow() {
-  answerListener = onSnapshot(callDoc, async (snapshot) => {
-    const data = snapshot.data();
-    if (!data || !data.answer || !pc) return;
-    if (pc.currentRemoteDescription) return;
-    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-    statusText.textContent = "Respuesta recibida. Conectando...";
-  });
-
-  const offerDescription = await pc.createOffer();
-  await pc.setLocalDescription(offerDescription);
-
-  await setDoc(callDoc, {
-    conversationId,
-    estado: "activa",
-    iniciadaPor: me.uid,
-    callerId: me.uid,
-    offer: offerDescription.toJSON(),
-    actualizada: serverTimestamp()
-  }, { merge: true });
-
-  listenForRemoteCandidates(answerCandidatesCollection);
-}
-
-async function startCalleeFlow(data) {
-  const offer = data.offer;
-  if (!offer) {
-    statusText.textContent = "La oferta no está disponible. Intenta iniciar la llamada otra vez.";
-    return;
-  }
-
-  await pc.setRemoteDescription(new RTCSessionDescription(offer));
-  const answerDescription = await pc.createAnswer();
-  await pc.setLocalDescription(answerDescription);
-
-  await setDoc(callDoc, {
-    estado: "activa",
-    calleeId: me.uid,
-    answer: answerDescription.toJSON(),
-    actualizada: serverTimestamp()
-  }, { merge: true });
-
-  listenForRemoteCandidates(offerCandidatesCollection);
-}
-
-function listenForRemoteCandidates(candidateCollection) {
-  candidatesListener = onSnapshot(query(candidateCollection), async (snapshot) => {
-    snapshot.docChanges().forEach(async (change) => {
-      if (change.type !== "added") return;
-      const data = change.doc.data();
-      if (data && data.candidate) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch (error) {
-          console.warn("Error agregando candidato ICE:", error);
-        }
-      }
-    });
-  });
-}
-
-function listenCallState() {
-  callDocListener = onSnapshot(callDoc, (snapshot) => {
+function listenToCallDocument() {
+  callDocUnsubscribe = onSnapshot(callRef, async (snapshot) => {
     if (!snapshot.exists()) return;
     const data = snapshot.data();
-    callTitle.textContent = data.estado === "finalizada" ? "Llamada finalizada" : "Videollamada";
+
+    if (isCaller && data.answer && pc && !pc.currentRemoteDescription) {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+      statusText.textContent = "Conectando...";
+    }
+
+    if (!isCaller && data.offer && !answerCreated) {
+      await answerCall(data.offer);
+    }
+
     if (data.estado === "finalizada") {
-      statusText.textContent = "La llamada fue finalizada.";
-      cleanupPeerConnection();
+      statusText.textContent = "La llamada terminó.";
+      closeConnection();
+    }
+
+    if (data.estado === "rechazada") {
+      statusText.textContent = "La llamada fue rechazada.";
+      closeConnection();
     }
   });
 }
 
-async function cleanupPeerConnection() {
-  if (pc) {
-    pc.getSenders().forEach((sender) => {
-      if (sender.track) sender.track.stop();
-    });
-    pc.close();
-    pc = null;
-  }
+function listenRemoteIceCandidates() {
+  const candidatesCollection = collection(callRef, isCaller ? "calleeCandidates" : "callerCandidates");
+  remoteCandidatesUnsubscribe = onSnapshot(candidatesCollection, async (snapshot) => {
+    for (const change of snapshot.docChanges()) {
+      if (change.type === "added") {
+        const candidate = change.doc.data();
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (error) {
+          console.error("Error agregando candidato remoto:", error);
+        }
+      }
+    }
+  });
+}
 
-  if (callDocListener) callDocListener();
-  if (answerListener) answerListener();
-  if (candidatesListener) candidatesListener();
+async function createOffer() {
+  if (!pc) return;
+  const offerDescription = await pc.createOffer();
+  await pc.setLocalDescription(offerDescription);
+  await setDoc(callRef, {
+    offer: {
+      type: offerDescription.type,
+      sdp: offerDescription.sdp
+    },
+    estado: "activa",
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+  statusText.textContent = "Llamando...";
+}
+
+async function answerCall(offer) {
+  if (!pc) return;
+  answerCreated = true;
+  await pc.setRemoteDescription(new RTCSessionDescription(offer));
+  const answerDescription = await pc.createAnswer();
+  await pc.setLocalDescription(answerDescription);
+  await setDoc(callRef, {
+    answer: {
+      type: answerDescription.type,
+      sdp: answerDescription.sdp
+    },
+    estado: "activa",
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+  statusText.textContent = "Conectando...";
+}
+
+async function addIceCandidate(candidate) {
+  await addDoc(collection(callRef, isCaller ? "callerCandidates" : "calleeCandidates"), candidate.toJSON());
+}
+
+async function endCall() {
+  if (callRef) {
+    await setDoc(callRef, {
+      estado: "finalizada",
+      finalizadaPor: me.uid,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+  closeConnection();
+}
+
+function closeConnection() {
+  if (remoteCandidatesUnsubscribe) remoteCandidatesUnsubscribe();
+  if (callDocUnsubscribe) callDocUnsubscribe();
+  pc?.close();
+  pc = null;
+  stream?.getTracks().forEach((track) => track.stop());
 }
 
 micButton.addEventListener("click", () => {
-  if (!localAudioTrack) return;
-  localAudioTrack.enabled = !localAudioTrack.enabled;
-  micButton.textContent = localAudioTrack.enabled ? "Micrófono" : "Micrófono off";
+  const audio = stream?.getAudioTracks()[0];
+  if (!audio) return;
+  audio.enabled = !audio.enabled;
+  micButton.textContent = audio.enabled ? "Micrófono" : "Micrófono off";
 });
 
 cameraButton.addEventListener("click", () => {
-  if (!localVideoTrack) return;
-  localVideoTrack.enabled = !localVideoTrack.enabled;
-  cameraButton.textContent = localVideoTrack.enabled ? "Cámara" : "Cámara off";
+  const video = stream?.getVideoTracks()[0];
+  if (!video) return;
+  video.enabled = !video.enabled;
+  cameraButton.textContent = video.enabled ? "Cámara" : "Cámara off";
 });
 
 hangButton.addEventListener("click", async () => {
-  if (conversationId) {
-    await setDoc(callDoc, {
-      estado: "finalizada",
-      finalizadaPor: me.uid,
-      actualizada: serverTimestamp()
-    }, { merge: true });
-  }
-
-  stream?.getTracks().forEach((track) => track.stop());
-  cleanupPeerConnection();
+  await endCall();
   window.location.href = backToChat.href;
+});
+
+window.addEventListener("beforeunload", async (event) => {
+  if (callRef) {
+    event.preventDefault();
+    await endCall();
+  }
 });
