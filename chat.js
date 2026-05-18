@@ -469,10 +469,8 @@ function createPeerConnection() {
   });
 
   callPeer.on("close", () => {
-    addDebugLog(`🔌 Peer cerrado`);
-    callStateLabel.textContent = "Llamada finalizada.";
-    closeOverlay();
-    cleanupCallSession();
+    addDebugLog(`🔌 Peer desconectado, pero NO cierra overlay automáticamente`);
+    callStateLabel.textContent = "Desconectado - intenta reconectar";
   });
 
   callPeer.on("error", (err) => {
