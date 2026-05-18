@@ -76,6 +76,8 @@ let callDocUnsubscribe = null;
 let isCaller = false;
 let callOverlayOpen = false;
 let receivedSignals = new Set();
+let peerSignalReady = false; // Indica si SimplePeer ha emitido su propio signal (offer)
+let pendingSignals = []; // Cola de signals a procesar cuando peer esté listo
 
 callLink.addEventListener("click", handleCallClick);
 
@@ -434,12 +436,38 @@ function createPeerConnection() {
 
   addDebugLog(`📡 SimplePeer creado. Stream local: ${callStream?.getTracks().length} tracks`);
   
+  // Resetear flag de readiness
+  peerSignalReady = false;
+  pendingSignals = [];
+  
   // Marcar que el peer está listo
   callManager.setPeerReady(callSessionId, true);
   callManager.updateCallStatus(callSessionId, "connecting");
 
   callPeer.on("signal", async (signalData) => {
     if (!callRef) return;
+    
+    // CRÍTICO: Marcar que SimplePeer está listo para recibir signals
+    // Esto ocurre cuando SimplePeer ha emitido su propio offer/answer
+    if (!peerSignalReady) {
+      peerSignalReady = true;
+      addDebugLog(`🎯 SimplePeer listo para recibir signals remotos (${signalData.type} emitido)`);
+      
+      // Procesar signals pendientes
+      if (pendingSignals.length > 0) {
+        addDebugLog(`📦 Procesando ${pendingSignals.length} signals pendientes...`);
+        const pending = pendingSignals.splice(0);
+        for (const sig of pending) {
+          try {
+            callPeer.signal(sig);
+            addDebugLog(`✅ Signal pendiente procesado`);
+          } catch (error) {
+            addDebugLog(`❌ Error procesando signal pendiente: ${error.message}`);
+          }
+        }
+      }
+    }
+    
     addDebugLog(`📤 Signal emitido: ${signalData.type}`);
     try {
       await setDoc(callRef, {
@@ -556,16 +584,30 @@ function listenCallDocument() {
         }
 
         receivedSignals.add(signalKey);
+        
+        // CRÍTICO: Validar que SimplePeer haya emitido su propio signal primero
+        // Si no, encolar el signal para procesarlo después
+        if (!peerSignalReady) {
+          addDebugLog(`⏳ SimplePeer aún no listo, encolando signal ${signalItem.signal.type}`);
+          pendingSignals.push(signalItem.signal);
+          continue;
+        }
+        
         newSignals++;
         addDebugLog(`📥 Signal remoto recibido: ${signalItem.signal.type}`);
         try {
+          // Pequeño delay para permitir que WebRTC procese correctamente
+          await new Promise(resolve => setTimeout(resolve, 10));
           callPeer.signal(signalItem.signal);
           callManager.recordSignalApplied(callSessionId, signalItem.signal.type);
           addDebugLog(`✅ Signal aplicado a peer`);
         } catch (error) {
           addDebugLog(`❌ Error aplicando signal: ${error.message}`);
-          if (error.message.includes("destroyed")) {
-            addDebugLog(`🔴 PEER DESTRUIDO - deteniendo procesamiento`);
+          
+          // Si el error es sobre estado, marca peer como fallido
+          if (error.message.includes("wrong state") || error.message.includes("destroyed")) {
+            addDebugLog(`🔴 ERROR CRÍTICO - Peer en estado inválido. Deteniendo procesamiento.`);
+            callManager.updateCallStatus(callSessionId, "failed");
             break;
           }
         }
@@ -631,6 +673,8 @@ function cleanupCallSession() {
   if (callDocUnsubscribe) callDocUnsubscribe();
   callDocUnsubscribe = null;
   receivedSignals.clear();
+  peerSignalReady = false;
+  pendingSignals = [];
   if (callPeer) {
     callPeer.destroy();
     callPeer = null;
