@@ -330,13 +330,9 @@ async function createCallRequest(calleeUid) {
 function setupIncomingCallBanner() {
   incomingCallBanner.id = "incomingCall";
   incomingCallBanner.className = "incomingCall hidden";
-  addDebugLog(`🔔 Configurando banner de llamada entrante...`);
-  if (headerElement?.parentNode) {
-    headerElement.parentNode.insertBefore(incomingCallBanner, headerElement.nextSibling);
-    addDebugLog(`✅ Banner insertado en el DOM`);
-  } else {
-    addDebugLog(`❌ headerElement o su parentNode no existen`);
-  }
+  addDebugLog(`🔔 Configurando modal de llamada entrante...`);
+  document.body.appendChild(incomingCallBanner);
+  addDebugLog(`✅ Modal de llamada insertado en el DOM`);
 }
 
 function listenIncomingCalls() {
@@ -644,22 +640,22 @@ function showIncomingCall(attemptId, callData, conversationId) {
     addDebugLog(`⏭️ Intento ${attemptId} ya está activo, ignorando duplicado`);
     return;
   }
-  addDebugLog(`🎯 Mostrando notificación de llamada entrante de ${callData.callerName}`);
+  addDebugLog(`🎯 Mostrando modal de llamada entrante de ${callData.callerName}`);
   activeIncomingCallId = attemptId;
 
   incomingCallBanner.innerHTML = `
-    <div style="flex:1; min-width:0;">
-      <strong style="display:block; color:var(--text);">Llamada entrante</strong>
-      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien")} te está llamando.</span>
+    <div>
+      <strong>📞 Llamada entrante</strong>
+      <span>${escapeHtml(callData.callerName || "Alguien")} te está llamando</span>
     </div>
     <div class="callActions">
-      <button class="btn small primary" id="acceptCallBtn">Aceptar</button>
-      <button class="btn small danger" id="rejectCallBtn">Rechazar</button>
+      <button class="btn primary" id="acceptCallBtn">✓ Aceptar</button>
+      <button class="btn danger" id="rejectCallBtn">✕ Rechazar</button>
     </div>
   `;
 
   incomingCallBanner.classList.remove("hidden");
-  addDebugLog(`✅ Banner visible, botones disponibles`);
+  addDebugLog(`✅ Modal visible, botones disponibles`);
 
   const acceptBtn = document.getElementById("acceptCallBtn");
   const rejectBtn = document.getElementById("rejectCallBtn");
