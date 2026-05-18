@@ -42,8 +42,7 @@ service cloud.firestore {
           (request.auth.uid == resource.data.caller || 
            request.auth.uid == resource.data.callee);
         
-        // Caller puede actualizar su propio documento
-        // Callee puede aceptar (cambiar estado a activa)
+        // Caller y Callee pueden actualizar
         allow update: if request.auth.uid != null && 
           (request.auth.uid == resource.data.caller || 
            request.auth.uid == resource.data.callee);

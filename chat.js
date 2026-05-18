@@ -3,7 +3,6 @@ import {
   addDoc,
   arrayUnion,
   collection,
-  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -69,7 +68,7 @@ let activeConversation = null;
 let stopMessages = null;
 let activeIncomingCallId = null;
 let callSessionId = null;
-let callAttemptId = null; // ← NUEVO: ID único para cada intento
+let callAttemptId = null; // ← ID único para cada intento de llamada
 let callRef = null;
 let callStream = null;
 let callPeer = null;
@@ -115,24 +114,24 @@ requireAuth(async (user, userProfile) => {
 
 async function cleanupOldCalls() {
   try {
-    addDebugLog(`🧹 Limpiando intentos de llamada antiguos...`);
-    const callsRef = collection(db, "llamadas");
-    const convSnapshot = await getDocs(callsRef);
+    const llamadasRef = collection(db, "llamadas");
+    const conversationDocs = await getDocs(llamadasRef);
     const now = Date.now();
     const CALL_TIMEOUT = 10 * 60 * 1000; // 10 minutos
 
-    for (const convDoc of convSnapshot.docs) {
-      const conversationId = convDoc.id;
-      const attemptsRef = collection(db, `llamadas/${conversationId}/attempts`);
-      const attemptsSnapshot = await getDocs(attemptsRef);
+    for (const conversationDoc of conversationDocs.docs) {
+      const conversationId = conversationDoc.id;
+      const attemptsRef = collection(db, "llamadas", conversationId, "attempts");
+      const attemptDocs = await getDocs(
+        query(attemptsRef, where("estado", "!=", "finalizada"))
+      );
 
-      for (const attemptDoc of attemptsSnapshot.docs) {
+      for (const attemptDoc of attemptDocs.docs) {
         const attemptData = attemptDoc.data();
         const createdTime = attemptData.createdAt?.toMillis?.() || 0;
-        
-        if (attemptData.estado !== "finalizada" && now - createdTime > CALL_TIMEOUT) {
-          addDebugLog(`🧹 Limpiando intento antiguo: ${attemptDoc.id}`);
-          await setDoc(attemptDoc.ref, { estado: "finalizada" }, { merge: true });
+        if (now - createdTime > CALL_TIMEOUT) {
+          addDebugLog(`🧹 Limpiando attempt antiguo: ${conversationId}/${attemptDoc.id}`);
+          await setDoc(attemptDoc.ref, { estado: "finalizada", limpiadoAutomaticamente: true }, { merge: true });
         }
       }
     }
@@ -296,19 +295,14 @@ async function createCallRequest(calleeUid) {
   
   // Generar ID único para este intento de llamada
   callAttemptId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  addDebugLog(`🆔 Nuevo intento de llamada: ${callAttemptId}`);
+  addDebugLog(`🆕 Nuevo intento de llamada: ${callAttemptId}`);
   
-  // Referencia: llamadas/{conversationId}/attempts/{attemptId}
+  // Referencia a la subcollection: llamadas/{conversationId}/attempts/{attemptId}
   callRef = doc(db, "llamadas", conversationId, "attempts", callAttemptId);
   
-  // LIMPIAR estado anterior
+  // Resetear signals para esta nueva llamada
   receivedSignals.clear();
-  if (callDocUnsubscribe) {
-    callDocUnsubscribe();
-    callDocUnsubscribe = null;
-  }
-
-  addDebugLog(`🧹 Estado limpiado, preparado para nueva llamada`);
+  addDebugLog(`🧹 Limpiando signals anteriores...`);
 
   await setDoc(callRef, {
     conversationId: conversationId,
@@ -317,12 +311,12 @@ async function createCallRequest(calleeUid) {
     callerName: profile.nombre || profile.usuario || "Yo",
     calleeName: activeConversation.nombres?.[calleeUid] || "Usuario",
     estado: "invitando",
-    signals: [], // ← INICIALIZAR VACÍO
+    signals: [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
 
-  callSessionId = callAttemptId;
+  callSessionId = conversationId;
   isCaller = true;
   setupCallSession(callAttemptId, activeConversation.nombres?.[calleeUid] || "Usuario");
 }
@@ -343,41 +337,58 @@ function setupIncomingCallBanner() {
 function listenIncomingCalls() {
   addDebugLog(`🔊 Iniciando escucha de llamadas entrantes para ${me.uid}...`);
   
-  // Usar collectionGroup para escuchar TODOS los intentos en TODAS las conversaciones
-  const attemptQuery = query(
-    collectionGroup(db, "attempts"),
-    where("callee", "==", me.uid),
-    where("estado", "==", "invitando")
-  );
-
-  onSnapshot(attemptQuery, (snapshot) => {
-    for (const attemptDoc of snapshot.docs) {
-      const attemptData = attemptDoc.data();
-      const conversationId = attemptData.conversationId;
+  // Escuchar cambios en TODAS las conversaciones de llamadas
+  onSnapshot(collection(db, "llamadas"), async (conversationSnapshots) => {
+    for (const conversationDoc of conversationSnapshots.docs) {
+      const conversationId = conversationDoc.id;
       
-      // Verificar si ya hemos mostrado esta notificación
-      if (activeIncomingCallId !== attemptDoc.id) {
-        addDebugLog(`🔔 LLAMADA ENTRANTE DETECTADA: de ${attemptData.callerName}, intento=${attemptDoc.id}`);
-        showIncomingCall(attemptDoc.id, attemptData, conversationId);
-      }
+      // Para cada conversación, escuchar los attempts
+      const attemptsQuery = query(
+        collection(db, "llamadas", conversationId, "attempts"),
+        where("callee", "==", me.uid),
+        where("estado", "==", "invitando")
+      );
+      
+      onSnapshot(attemptsQuery, (attemptSnapshots) => {
+        addDebugLog(`📥 Snapshot de llamadas entrantes en ${conversationId}: ${attemptSnapshots.docs.length} documento(s)`);
+        
+        if (attemptSnapshots.empty) {
+          addDebugLog(`⚠️ Sin llamadas entrantes en ${conversationId}`);
+          return;
+        }
+        
+        const attemptDoc = attemptSnapshots.docs[0];
+        const attemptData = attemptDoc.data();
+        const attemptId = attemptDoc.id;
+        
+        addDebugLog(`🔔 LLAMADA ENTRANTE DETECTADA: de ${attemptData.callerName}, estado=${attemptData.estado}, attemptId=${attemptId}`);
+        showIncomingCall(attemptId, attemptData, conversationId);
+      }, (error) => {
+        addDebugLog(`❌ Error escuchando attempts en ${conversationId}: ${error.message}`);
+      });
     }
   }, (error) => {
-    addDebugLog(`❌ Error escuchando llamadas entrantes: ${error.message}`);
+    addDebugLog(`❌ Error escuchando conversaciones de llamadas: ${error.message}`);
   });
 }
 
-function setupCallSession(callId, remoteName) {
+function setupCallSession(attemptId, remoteName) {
   if (!callOverlay) return;
-  callSessionId = callId;
+  callSessionId = callSessionId || activeConversation.id;
+  callAttemptId = attemptId;
   callOverlayOpen = true;
   callOverlay.classList.remove("hidden");
   callHeaderTitle.textContent = `Videollamada con ${remoteName}`;
   callHeaderSub.textContent = isCaller ? "Llamando..." : "Aceptando llamada...";
   callStateLabel.textContent = "Conectando...";
   debugPanel.style.display = "block";
-  addDebugLog(`🚀 Iniciando sesión de llamada. Caller: ${isCaller}`);
+  addDebugLog(`🚀 Iniciando sesión de llamada. Caller: ${isCaller}, AttemptId: ${attemptId}`);
 
-  // callRef ya debe estar asignado desde createCallRequest o showIncomingCall
+  // callRef ya está configurado en createCallRequest o showIncomingCall
+  if (!callRef) {
+    callRef = doc(db, "llamadas", callSessionId, "attempts", attemptId);
+  }
+  
   startLocalMedia()
     .then(async () => {
       createPeerConnection();
@@ -492,11 +503,11 @@ function createPeerConnection() {
 
 function listenCallDocument() {
   if (callDocUnsubscribe) callDocUnsubscribe();
-  addDebugLog(`👂 Escuchando documento de llamada: ${callAttemptId}`);
+  addDebugLog(`👂 Escuchando documento de llamada`);
   
   callDocUnsubscribe = onSnapshot(callRef, async (snapshot) => {
     if (!snapshot.exists()) {
-      addDebugLog(`⚠️ Documento de intento no existe`);
+      addDebugLog(`⚠️ Documento de llamada no existe`);
       return;
     }
     const data = snapshot.data();
@@ -567,16 +578,12 @@ function listenCallDocument() {
 
 async function endCall() {
   addDebugLog(`📞 Colgando llamada...`);
-  if (callDocUnsubscribe) {
-    callDocUnsubscribe();
-    callDocUnsubscribe = null;
-  }
-  
   if (callRef) {
     try {
       await setDoc(callRef, {
         estado: "finalizada",
         finalizadaPor: me.uid,
+        signals: [], // ← LIMPIAR SIGNALS al finalizar
         updatedAt: serverTimestamp()
       }, { merge: true });
       addDebugLog(`✅ Llamada marcada como finalizada en Firestore`);
@@ -601,36 +608,28 @@ function closeOverlay() {
 }
 
 function cleanupCallSession() {
-  addDebugLog(`🧹 Limpiando sesión de llamada: ${callAttemptId}`);
-  
-  if (callDocUnsubscribe) {
-    callDocUnsubscribe();
-    callDocUnsubscribe = null;
-  }
-  
+  addDebugLog(`🧹 Limpiando sesión de llamada...`);
+  if (callDocUnsubscribe) callDocUnsubscribe();
+  callDocUnsubscribe = null;
   receivedSignals.clear();
-  
   if (callPeer) {
     callPeer.destroy();
     callPeer = null;
     addDebugLog(`✅ SimplePeer destruido`);
   }
-  
   if (callStream) {
     callStream.getTracks().forEach((track) => track.stop());
     callStream = null;
     addDebugLog(`✅ Stream local detenido`);
   }
-  
   callSessionId = null;
-  callAttemptId = null;
   callRef = null;
   addDebugLog(`✅ Sesión limpiada completamente`);
 }
 
 function showIncomingCall(attemptId, callData, conversationId) {
   if (activeIncomingCallId === attemptId) {
-    addDebugLog(`⏭️ Intento ${attemptId} ya está activo, ignorando duplicado`);
+    addDebugLog(`⏭️ Llamada ${attemptId} ya está activa, ignorando duplicado`);
     return;
   }
   addDebugLog(`🎯 Mostrando notificación de llamada entrante de ${callData.callerName}`);
@@ -659,13 +658,10 @@ function showIncomingCall(attemptId, callData, conversationId) {
       addDebugLog(`✅ Llamada aceptada, actualizando estado...`);
       // RESETEAR signals para evitar conflictos de la llamada anterior
       receivedSignals.clear();
-      callAttemptId = attemptId;
       addDebugLog(`🧹 Limpiando signals anteriores...`);
       
-      // Referencia a este intento específico
-      callRef = doc(db, "llamadas", conversationId, "attempts", attemptId);
-      
-      await setDoc(callRef, {
+      // Actualizar en la subcollection
+      await setDoc(doc(db, "llamadas", conversationId, "attempts", attemptId), {
         estado: "activa",
         acceptedAt: serverTimestamp(),
         aceptadaPor: me.uid,
@@ -673,8 +669,10 @@ function showIncomingCall(attemptId, callData, conversationId) {
       }, { merge: true });
       addDebugLog(`✅ Estado actualizado a 'activa', iniciando sesión...`);
       hideIncomingCall();
-      callSessionId = attemptId;
+      callSessionId = conversationId;
+      callAttemptId = attemptId;
       isCaller = false;
+      callRef = doc(db, "llamadas", conversationId, "attempts", attemptId);
       setupCallSession(attemptId, callData.callerName || "Usuario");
     };
   }
@@ -682,14 +680,13 @@ function showIncomingCall(attemptId, callData, conversationId) {
   if (rejectBtn) {
     rejectBtn.onclick = async () => {
       receivedSignals.clear();
-      callAttemptId = attemptId;
       addDebugLog(`🧹 Llamada rechazada, limpiando signals...`);
       
-      callRef = doc(db, "llamadas", conversationId, "attempts", attemptId);
-      
-      await setDoc(callRef, {
+      // Actualizar en la subcollection
+      await setDoc(doc(db, "llamadas", conversationId, "attempts", attemptId), {
         estado: "rechazada",
         rechazadoPor: me.uid,
+        signals: [],
         updatedAt: serverTimestamp()
       }, { merge: true });
       hideIncomingCall();
