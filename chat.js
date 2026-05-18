@@ -21,6 +21,16 @@ const title = document.getElementById("chatTitle");
 const subtitle = document.getElementById("chatSubtitle");
 const headerAvatar = document.getElementById("chatAvatar");
 const callLink = document.getElementById("callLink");
+const callOverlay = document.getElementById("callOverlay");
+const callHeaderTitle = document.getElementById("callHeaderTitle");
+const callHeaderSub = document.getElementById("callHeaderSub");
+const callLocalVideo = document.getElementById("callLocalVideo");
+const callRemoteVideo = document.getElementById("callRemoteVideo");
+const toggleCallCamera = document.getElementById("toggleCallCamera");
+const toggleCallMic = document.getElementById("toggleCallMic");
+const endCallButton = document.getElementById("endCall");
+const closeCallOverlayButton = document.getElementById("closeCallOverlay");
+const callStateLabel = document.getElementById("callStateLabel");
 const headerElement = document.querySelector(".topbar");
 const incomingCallBanner = document.createElement("div");
 
@@ -31,19 +41,15 @@ let profile = null;
 let activeConversation = null;
 let stopMessages = null;
 let activeIncomingCallId = null;
-let callOverlay = null;
-let localCallVideo = null;
-let remoteCallVideo = null;
-let overlayStatus = null;
-let localStream = null;
-let peerConnection = null;
-let currentCallId = null;
-let currentCallRef = null;
-let isCaller = false;
-let currentCallRemoteName = "";
+let callSessionId = null;
+let callRef = null;
+let callStream = null;
+let callPc = null;
 let callDocUnsubscribe = null;
-let remoteCandidatesUnsubscribe = null;
-let pendingRemoteCandidates = [];
+let callCandidatesUnsubscribe = null;
+let isCaller = false;
+let callAnswered = false;
+let callOverlayOpen = false;
 
 callLink.addEventListener("click", handleCallClick);
 
@@ -191,9 +197,8 @@ function renderHeader() {
     subtitle.textContent = "Chat individual";
     headerAvatar.textContent = initials(title.textContent);
   }
-  callLink.href = "#";
+  callLink.href = "javascript:void(0)";
   callLink.classList.remove("disabled");
-  updateCallLinkLabel();
 }
 
 function handleCallClick(event) {
@@ -203,11 +208,6 @@ function handleCallClick(event) {
     alert("La videollamada solo funciona en chats privados.");
     return;
   }
-  if (currentCallId === activeConversation.id) {
-    showCallOverlay("Volviendo a la llamada...");
-    return;
-  }
-
   const otherUid = activeConversation.miembros?.find((uid) => uid !== me.uid);
   if (!otherUid) {
     alert("No se pudo detectar al otro participante.");
@@ -220,7 +220,8 @@ function handleCallClick(event) {
 }
 
 async function createCallRequest(calleeUid) {
-  const callRef = doc(db, "llamadas", activeConversation.id);
+  const callId = activeConversation.id;
+  callRef = doc(db, "llamadas", callId);
   const callSnap = await getDoc(callRef);
   const previous = callSnap.exists() ? callSnap.data() : null;
   if (previous?.estado === "invitando" || previous?.estado === "activa") {
@@ -229,7 +230,7 @@ async function createCallRequest(calleeUid) {
   }
 
   await setDoc(callRef, {
-    conversationId: activeConversation.id,
+    conversationId: callId,
     caller: me.uid,
     callee: calleeUid,
     callerName: profile.nombre || profile.usuario || "Yo",
@@ -239,7 +240,9 @@ async function createCallRequest(calleeUid) {
     updatedAt: serverTimestamp()
   }, { merge: true });
 
-  await startOutgoingCall(activeConversation.id, calleeUid, activeConversation.nombres?.[calleeUid] || "Usuario");
+  callSessionId = callId;
+  isCaller = true;
+  setupCallSession(callId, activeConversation.nombres?.[calleeUid] || "Usuario");
 }
 
 function setupIncomingCallBanner() {
@@ -248,328 +251,6 @@ function setupIncomingCallBanner() {
   if (headerElement?.parentNode) {
     headerElement.parentNode.insertBefore(incomingCallBanner, headerElement.nextSibling);
   }
-}
-
-function updateCallLinkLabel() {
-  if (!callLink) return;
-  callLink.textContent = currentCallId ? "Volver a llamada" : "Llamar";
-}
-
-async function startOutgoingCall(callId, calleeUid, calleeName) {
-  currentCallId = callId;
-  currentCallRef = doc(db, "llamadas", callId);
-  isCaller = true;
-  currentCallRemoteName = calleeName;
-
-  await prepareLocalStream();
-  createVideoCallOverlay();
-  showCallOverlay("Llamando a " + calleeName + "...");
-  createPeerConnection();
-  listenCallDocument();
-  listenRemoteIceCandidates();
-  await createOffer();
-}
-
-async function acceptIncomingCall(callId, callData) {
-  if (currentCallId) return;
-  currentCallId = callId;
-  currentCallRef = doc(db, "llamadas", callId);
-  isCaller = false;
-  currentCallRemoteName = callData.callerName || "Usuario";
-
-  await prepareLocalStream();
-  createVideoCallOverlay();
-  showCallOverlay("Conectando con " + currentCallRemoteName + "...");
-  createPeerConnection();
-  listenCallDocument();
-  listenRemoteIceCandidates();
-
-  if (callData.offer) {
-    await answerCall(callData.offer);
-  }
-}
-
-async function prepareLocalStream() {
-  if (!localStream) {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  }
-  if (localCallVideo) {
-    localCallVideo.srcObject = localStream;
-    localCallVideo.muted = true;
-    localCallVideo.play().catch(() => {});
-  }
-}
-
-function createVideoCallOverlay() {
-  if (callOverlay) return;
-
-  callOverlay = document.createElement("div");
-  callOverlay.id = "videoCallOverlay";
-  callOverlay.className = "videoCallOverlay hidden";
-  callOverlay.innerHTML = `
-    <div class="videoCallCard">
-      <div class="videoCallHeader">
-        <div><strong>Videollamada</strong><div class="videoCallSubtitle">Con ${escapeHtml(currentCallRemoteName || "usuario")}</div></div>
-        <div class="videoCallActionsTop">
-          <button class="btn small danger" id="closeCallBtn">Cerrar</button>
-        </div>
-      </div>
-      <div class="videoCallGrid">
-        <div class="videoCallTile localTile">
-          <span class="videoLabel">Tu cámara</span>
-          <video id="callLocalVideo" autoplay muted playsinline></video>
-        </div>
-        <div class="videoCallTile remoteTile">
-          <span class="videoLabel">Cámara remota</span>
-          <video id="callRemoteVideo" autoplay playsinline></video>
-        </div>
-      </div>
-      <div class="videoCallStatus" id="callOverlayStatus">Conectando...</div>
-      <div class="videoCallControls">
-        <button class="btn small" id="toggleCallCamera">Cámara</button>
-        <button class="btn small" id="toggleCallMic">Micrófono</button>
-        <button class="btn danger small" id="hangCallBtn">Colgar</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(callOverlay);
-  localCallVideo = callOverlay.querySelector("#callLocalVideo");
-  remoteCallVideo = callOverlay.querySelector("#callRemoteVideo");
-  overlayStatus = callOverlay.querySelector("#callOverlayStatus");
-  callCameraBtn = callOverlay.querySelector("#toggleCallCamera");
-  callMicBtn = callOverlay.querySelector("#toggleCallMic");
-  hangCallBtn = callOverlay.querySelector("#hangCallBtn");
-  closeCallBtn = callOverlay.querySelector("#closeCallBtn");
-
-  callCameraBtn?.addEventListener("click", toggleCallCamera);
-  callMicBtn?.addEventListener("click", toggleCallMic);
-  hangCallBtn?.addEventListener("click", hangUpCall);
-  closeCallBtn?.addEventListener("click", hideCallOverlay);
-}
-
-function showCallOverlay(message) {
-  if (!callOverlay) createVideoCallOverlay();
-  callOverlay.classList.remove("hidden");
-  overlayStatus.textContent = message || "Esperando conexión...";
-  updateCallLinkLabel();
-}
-
-function hideCallOverlay() {
-  if (!callOverlay) return;
-  callOverlay.classList.add("hidden");
-  updateCallLinkLabel();
-}
-
-function createPeerConnection() {
-  peerConnection = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-  });
-
-  peerConnection.onicecandidate = async (event) => {
-    if (event.candidate) {
-      await addCandidate(event.candidate);
-    }
-  };
-
-  peerConnection.ontrack = (event) => {
-    const [remoteStream] = event.streams;
-    if (remoteStream && remoteCallVideo) {
-      remoteCallVideo.srcObject = remoteStream;
-      remoteCallVideo.play().catch(() => {});
-      overlayStatus.textContent = "Conectado";
-    }
-  };
-
-  peerConnection.onconnectionstatechange = () => {
-    if (!peerConnection) return;
-    if (peerConnection.connectionState === "connected") {
-      overlayStatus.textContent = "Conectado";
-    } else if (peerConnection.connectionState === "disconnected" || peerConnection.connectionState === "failed") {
-      overlayStatus.textContent = "La conexión se interrumpió.";
-    } else if (peerConnection.connectionState === "closed") {
-      overlayStatus.textContent = "Llamada finalizada.";
-    }
-  };
-
-  pendingRemoteCandidates = [];
-  localStream?.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
-}
-
-function listenCallDocument() {
-  if (!currentCallRef) return;
-  callDocUnsubscribe = onSnapshot(currentCallRef, async (snapshot) => {
-    if (!snapshot.exists()) return;
-    const data = snapshot.data();
-
-    if (data.estado === "finalizada") {
-      overlayStatus.textContent = "La llamada terminó.";
-      cleanupCallSession();
-      return;
-    }
-
-    if (data.estado === "rechazada") {
-      overlayStatus.textContent = "La llamada fue rechazada.";
-      cleanupCallSession();
-      return;
-    }
-
-    if (isCaller && data.answer && peerConnection && !peerConnection.currentRemoteDescription) {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-      await flushPendingCandidates();
-      overlayStatus.textContent = "Conectando...";
-    }
-
-    if (!isCaller && data.offer && peerConnection && !peerConnection.currentRemoteDescription) {
-      await answerCall(data.offer);
-      overlayStatus.textContent = "Conectando...";
-    }
-  });
-}
-
-function listenRemoteIceCandidates() {
-  if (!currentCallRef) return;
-  const candidatesCollection = collection(currentCallRef, isCaller ? "calleeCandidates" : "callerCandidates");
-  remoteCandidatesUnsubscribe = onSnapshot(candidatesCollection, async (snapshot) => {
-    for (const change of snapshot.docChanges()) {
-      if (change.type === "added") {
-        const candidate = change.doc.data();
-        try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (error) {
-          console.error("Error agregando candidato remoto:", error);
-        }
-      }
-    }
-  });
-}
-
-async function createOffer() {
-  if (!peerConnection) return;
-  const offerDescription = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offerDescription);
-  await setDoc(currentCallRef, {
-    offer: {
-      type: offerDescription.type,
-      sdp: offerDescription.sdp
-    },
-    estado: "activa",
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-  overlayStatus.textContent = "Llamando...";
-}
-
-async function answerCall(offer) {
-  if (!peerConnection) return;
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-  await flushPendingCandidates();
-  const answerDescription = await peerConnection.createAnswer();
-  await peerConnection.setLocalDescription(answerDescription);
-  await setDoc(currentCallRef, {
-    answer: {
-      type: answerDescription.type,
-      sdp: answerDescription.sdp
-    },
-    estado: "activa",
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-}
-
-async function flushPendingCandidates() {
-  if (!peerConnection || !pendingRemoteCandidates.length) return;
-  for (const candidate of pendingRemoteCandidates) {
-    try {
-      await peerConnection.addIceCandidate(candidate);
-    } catch (error) {
-      console.error("Error agregando candidato pendiente:", error);
-    }
-  }
-  pendingRemoteCandidates = [];
-}
-
-async function addCandidate(candidate) {
-  await addDoc(collection(currentCallRef, isCaller ? "callerCandidates" : "calleeCandidates"), candidate.toJSON());
-}
-
-async function hangUpCall() {
-  if (currentCallRef) {
-    await setDoc(currentCallRef, {
-      estado: "finalizada",
-      finalizadaPor: me.uid,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-  }
-  cleanupCallSession();
-  hideCallOverlay();
-}
-
-function cleanupCallSession() {
-  if (remoteCandidatesUnsubscribe) remoteCandidatesUnsubscribe();
-  if (callDocUnsubscribe) callDocUnsubscribe();
-  if (peerConnection) {
-    peerConnection.close();
-    peerConnection = null;
-  }
-  if (localStream) {
-    localStream.getTracks().forEach((track) => track.stop());
-    localStream = null;
-  }
-  if (localCallVideo) {
-    localCallVideo.srcObject = null;
-  }
-  if (remoteCallVideo) {
-    remoteCallVideo.srcObject = null;
-  }
-  currentCallId = null;
-  currentCallRef = null;
-  isCaller = false;
-  currentCallRemoteName = "";
-  updateCallLinkLabel();
-}
-
-function toggleCallMic() {
-  if (!localStream) return;
-  const audioTrack = localStream.getAudioTracks()[0];
-  if (!audioTrack) return;
-  audioTrack.enabled = !audioTrack.enabled;
-  callMicBtn.textContent = audioTrack.enabled ? "Micrófono" : "Micrófono silenciado";
-}
-
-function toggleCallCamera() {
-  if (!localStream) return;
-  const videoTrack = localStream.getVideoTracks()[0];
-  if (!videoTrack) return;
-  videoTrack.enabled = !videoTrack.enabled;
-  callCameraBtn.textContent = videoTrack.enabled ? "Cámara" : "Cámara desactivada";
-}
-
-async function acceptIncomingCall(callId, callData) {
-  if (currentCallId) return;
-  currentCallId = callId;
-  currentCallRef = doc(db, "llamadas", callId);
-  isCaller = false;
-  currentCallRemoteName = callData.callerName || "Usuario";
-
-  await prepareLocalStream();
-  createVideoCallOverlay();
-  showCallOverlay("Conectando con " + currentCallRemoteName + "...");
-  createPeerConnection();
-  listenCallDocument();
-  listenRemoteIceCandidates();
-
-  if (callData.offer) {
-    await answerCall(callData.offer);
-  }
-}
-
-function rejectIncomingCall(callId) {
-  hideIncomingCall();
-}
-
-function hideCallOverlay() {
-  if (!callOverlay) return;
-  callOverlay.classList.add("hidden");
-  updateCallLinkLabel();
 }
 
 function listenIncomingCalls() {
@@ -592,6 +273,201 @@ function listenIncomingCalls() {
   });
 }
 
+function setupCallSession(callId, remoteName) {
+  if (!callOverlay) return;
+  callSessionId = callId;
+  callOverlayOpen = true;
+  callOverlay.classList.remove("hidden");
+  callHeaderTitle.textContent = `Videollamada con ${remoteName}`;
+  callHeaderSub.textContent = isCaller ? "Llamando..." : "Aceptando llamada...";
+  callStateLabel.textContent = "Conectando...";
+
+  callRef = doc(db, "llamadas", callId);
+  startLocalMedia()
+    .then(async () => {
+      createPeerConnection();
+      listenCallDocument();
+      listenCallCandidates();
+      if (isCaller) {
+        await createOffer();
+      }
+    })
+    .catch((error) => {
+      console.error("Error iniciando medios para la llamada:", error);
+      callStateLabel.textContent = "No se pudo acceder a la cámara o al micrófono.";
+    });
+}
+
+async function startLocalMedia() {
+  if (callStream) return;
+  callStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  callLocalVideo.srcObject = callStream;
+  await callLocalVideo.play().catch(() => {});
+}
+
+function createPeerConnection() {
+  if (callPc) return;
+  callPc = new RTCPeerConnection({
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+  });
+
+  callPc.onicecandidate = async (event) => {
+    if (event.candidate) {
+      await addIceCandidate(event.candidate).catch((error) => {
+        console.error("Error guardando candidato local:", error);
+      });
+    }
+  };
+
+  callPc.ontrack = (event) => {
+    const [remoteStream] = event.streams;
+    if (remoteStream) {
+      callRemoteVideo.srcObject = remoteStream;
+      callRemoteVideo.play().catch(() => {});
+      callStateLabel.textContent = "Conectado";
+      callHeaderSub.textContent = "Videollamada activa";
+    }
+  };
+
+  callPc.onconnectionstatechange = () => {
+    if (!callPc) return;
+    if (callPc.connectionState === "connected") {
+      callStateLabel.textContent = "Conectado";
+    } else if (callPc.connectionState === "disconnected" || callPc.connectionState === "failed") {
+      callStateLabel.textContent = "La conexión se interrumpió.";
+    } else if (callPc.connectionState === "closed") {
+      callStateLabel.textContent = "Llamada finalizada.";
+    }
+  };
+
+  callStream?.getTracks().forEach((track) => callPc.addTrack(track, callStream));
+}
+
+function listenCallDocument() {
+  if (callDocUnsubscribe) callDocUnsubscribe();
+  callDocUnsubscribe = onSnapshot(callRef, async (snapshot) => {
+    if (!snapshot.exists()) return;
+    const data = snapshot.data();
+
+    if (data.estado === "rechazada") {
+      callStateLabel.textContent = "La llamada fue rechazada.";
+      hideCallOverlay();
+      cleanupCallSession();
+      return;
+    }
+
+    if (data.estado === "finalizada") {
+      callStateLabel.textContent = "La llamada terminó.";
+      hideCallOverlay();
+      cleanupCallSession();
+      return;
+    }
+
+    if (!isCaller && data.offer && !callAnswered) {
+      await answerCall(data.offer).catch((error) => {
+        console.error("Error al responder oferta:", error);
+      });
+    }
+
+    if (isCaller && data.answer && callPc && !callPc.currentRemoteDescription) {
+      await callPc.setRemoteDescription(new RTCSessionDescription(data.answer));
+      callStateLabel.textContent = "Conectando...";
+    }
+  });
+}
+
+function listenCallCandidates() {
+  if (callCandidatesUnsubscribe) callCandidatesUnsubscribe();
+  const remoteCollection = collection(callRef, isCaller ? "calleeCandidates" : "callerCandidates");
+  callCandidatesUnsubscribe = onSnapshot(remoteCollection, async (snapshot) => {
+    for (const change of snapshot.docChanges()) {
+      if (change.type === "added") {
+        try {
+          await callPc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
+        } catch (error) {
+          console.error("Error agregando candidato remoto:", error);
+        }
+      }
+    }
+  });
+}
+
+async function createOffer() {
+  if (!callPc) return;
+  const offerDescription = await callPc.createOffer();
+  await callPc.setLocalDescription(offerDescription);
+  await setDoc(callRef, {
+    offer: {
+      type: offerDescription.type,
+      sdp: offerDescription.sdp
+    },
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+  callStateLabel.textContent = "Llamando...";
+}
+
+async function answerCall(offer) {
+  if (!callPc) return;
+  callAnswered = true;
+  await callPc.setRemoteDescription(new RTCSessionDescription(offer));
+  const answerDescription = await callPc.createAnswer();
+  await callPc.setLocalDescription(answerDescription);
+  await setDoc(callRef, {
+    answer: {
+      type: answerDescription.type,
+      sdp: answerDescription.sdp
+    },
+    estado: "activa",
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+  callStateLabel.textContent = "Conectando...";
+}
+
+async function addIceCandidate(candidate) {
+  const localCollection = collection(callRef, isCaller ? "callerCandidates" : "calleeCandidates");
+  await addDoc(localCollection, candidate.toJSON());
+}
+
+async function endCall() {
+  if (callRef) {
+    await setDoc(callRef, {
+      estado: "finalizada",
+      finalizadaPor: me.uid,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  }
+  closeOverlay();
+  cleanupCallSession();
+}
+
+function hideCallOverlay() {
+  closeOverlay();
+}
+
+function closeOverlay() {
+  if (!callOverlay) return;
+  callOverlay.classList.add("hidden");
+  callOverlayOpen = false;
+}
+
+function cleanupCallSession() {
+  if (callDocUnsubscribe) callDocUnsubscribe();
+  if (callCandidatesUnsubscribe) callCandidatesUnsubscribe();
+  callDocUnsubscribe = null;
+  callCandidatesUnsubscribe = null;
+  if (callPc) {
+    callPc.close();
+    callPc = null;
+  }
+  if (callStream) {
+    callStream.getTracks().forEach((track) => track.stop());
+    callStream = null;
+  }
+  callSessionId = null;
+  callRef = null;
+  callAnswered = false;
+}
+
 function showIncomingCall(callId, callData) {
   if (activeIncomingCallId === callId) return;
   activeIncomingCallId = callId;
@@ -612,25 +488,31 @@ function showIncomingCall(callId, callData) {
   const acceptBtn = document.getElementById("acceptCallBtn");
   const rejectBtn = document.getElementById("rejectCallBtn");
 
-  acceptBtn?.addEventListener("click", async () => {
-    await setDoc(doc(db, "llamadas", callId), {
-      estado: "activa",
-      acceptedAt: serverTimestamp(),
-      aceptadaPor: me.uid,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-    hideIncomingCall();
-    await acceptIncomingCall(callId, callData);
-  });
+  if (acceptBtn) {
+    acceptBtn.onclick = async () => {
+      await setDoc(doc(db, "llamadas", callId), {
+        estado: "activa",
+        acceptedAt: serverTimestamp(),
+        aceptadaPor: me.uid,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      hideIncomingCall();
+      callSessionId = callId;
+      isCaller = false;
+      setupCallSession(callId, callData.callerName || "Usuario");
+    };
+  }
 
-  rejectBtn?.addEventListener("click", async () => {
-    await setDoc(doc(db, "llamadas", callId), {
-      estado: "rechazada",
-      rechazadoPor: me.uid,
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-    hideIncomingCall();
-  });
+  if (rejectBtn) {
+    rejectBtn.onclick = async () => {
+      await setDoc(doc(db, "llamadas", callId), {
+        estado: "rechazada",
+        rechazadoPor: me.uid,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      hideIncomingCall();
+    };
+  }
 }
 
 function hideIncomingCall() {
@@ -638,6 +520,32 @@ function hideIncomingCall() {
   incomingCallBanner.classList.add("hidden");
   incomingCallBanner.innerHTML = "";
 }
+
+toggleCallMic?.addEventListener("click", () => {
+  if (!callStream) return;
+  const audioTrack = callStream.getAudioTracks()[0];
+  if (!audioTrack) return;
+  audioTrack.enabled = !audioTrack.enabled;
+  toggleCallMic.textContent = audioTrack.enabled ? "Micrófono" : "Micrófono off";
+});
+
+toggleCallCamera?.addEventListener("click", () => {
+  if (!callStream) return;
+  const videoTrack = callStream.getVideoTracks()[0];
+  if (!videoTrack) return;
+  videoTrack.enabled = !videoTrack.enabled;
+  toggleCallCamera.textContent = videoTrack.enabled ? "Cámara" : "Cámara off";
+});
+
+endCallButton?.addEventListener("click", async () => {
+  await endCall().catch((error) => {
+    console.error("Error al colgar la llamada:", error);
+  });
+});
+
+closeCallOverlayButton?.addEventListener("click", () => {
+  closeOverlay();
+});
 
 function bindMessages(id) {
   const q = query(collection(db, "conversaciones", id, "mensajes"), orderBy("fecha"));

@@ -62,7 +62,7 @@
           </div>
         </div>
         <div class="right">
-          <a id="callLink" class="btn small disabled" href="#">Llamar</a>
+          <a id="callLink" class="btn small disabled" href="videollamada.html">Llamar</a>
         </div>
       </header>
 
@@ -83,6 +83,36 @@
         <button id="enviar" class="btn primary">Enviar</button>
       </footer>
     </main>
+
+    <div id="callOverlay" class="callOverlay hidden" aria-hidden="true">
+      <div class="callPanel">
+        <div class="callHeader">
+          <div>
+            <div id="callHeaderTitle" class="title">Videollamada</div>
+            <div id="callHeaderSub" class="sub">Esperando conexión...</div>
+          </div>
+          <button id="closeCallOverlay" class="btn small ghost">Cerrar</button>
+        </div>
+
+        <div class="callGrid">
+          <div class="callBox">
+            <div class="callBoxLabel">Tu cámara</div>
+            <video id="callLocalVideo" class="callVideo" autoplay muted playsinline></video>
+          </div>
+          <div class="callBox">
+            <div class="callBoxLabel">Camara del otro</div>
+            <video id="callRemoteVideo" class="callVideo" autoplay playsinline></video>
+          </div>
+        </div>
+
+        <div class="callControls">
+          <button id="toggleCallCamera" class="btn small">Cámara</button>
+          <button id="toggleCallMic" class="btn small">Micrófono</button>
+          <button id="endCall" class="btn danger small">Colgar</button>
+          <span id="callStateLabel" class="callStateLabel">No hay llamada activa.</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="chat.js"></script>

@@ -333,96 +333,82 @@ a:hover{opacity:.95}
 
 .callActions{display:flex; gap:10px; flex-wrap:wrap;}
 
-.videoCallOverlay{
+.callOverlay{
   position:fixed;
   inset:0;
   z-index:9999;
-  background:rgba(0,0,0,.76);
   display:grid;
   place-items:center;
-  padding:24px;
+  padding:20px;
+  background:rgba(0,0,0,.7);
 }
 
-.videoCallOverlay.hidden{display:none;}
+.callOverlay.hidden{display:none;}
 
-.videoCallCard{
-  width:min(1180px,100%);
-  max-width:1180px;
-  background:rgba(8,20,18,.98);
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:28px;
-  box-shadow:0 30px 80px rgba(0,0,0,.45);
+.callPanel{
+  width:min(1100px,100%);
+  max-height:calc(100vh - 40px);
   overflow:hidden;
+  display:grid;
+  gap:18px;
+  background:linear-gradient(180deg, rgba(8,25,23,.96), rgba(6,18,17,.96));
+  border:1px solid var(--stroke);
+  border-radius:24px;
+  box-shadow:var(--shadow);
+  padding:22px;
 }
 
-.videoCallHeader{
+.callHeader{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:16px;
-  padding:20px 24px;
-  border-bottom:1px solid rgba(255,255,255,.06);
 }
 
-.videoCallSubtitle{
+.callGrid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+
+.callBox{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:20px;
+  padding:14px;
+  display:grid;
+  gap:12px;
+  background:rgba(255,255,255,.03);
+}
+
+.callBoxLabel{
   color:var(--muted);
-  margin-top:6px;
   font-size:14px;
 }
 
-.videoCallGrid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:18px;
-  padding:24px;
-}
-
-.videoCallTile{
-  position:relative;
-  background:rgba(255,255,255,.03);
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:24px;
-  min-height:320px;
-  overflow:hidden;
-}
-
-.videoLabel{
-  position:absolute;
-  z-index:1;
-  top:14px;
-  left:14px;
-  padding:8px 12px;
-  border-radius:999px;
-  background:rgba(0,0,0,.45);
-  color:var(--text);
-  font-size:13px;
-}
-
-.videoCallTile video{
+.callVideo{
   width:100%;
-  height:100%;
-  object-fit:cover;
+  aspect-ratio:16/9;
   background:#000;
+  border-radius:18px;
+  object-fit:cover;
 }
 
-.videoCallStatus{
-  padding:0 24px 16px;
-  color:var(--muted);
-  font-size:15px;
-}
-
-.videoCallControls{
+.callControls{
   display:flex;
-  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
   gap:12px;
-  padding:0 24px 24px;
+  flex-wrap:wrap;
 }
 
-.videoCallActionsTop{display:flex; gap:10px;}
+.callStateLabel{
+  color:var(--muted);
+  font-size:14px;
+  margin-left:auto;
+}
 
-@media(max-width: 900px){
-  .videoCallGrid{grid-template-columns:1fr;}
-  .videoCallCard{width:min(100%, calc(100vw - 32px));}
+@media (max-width: 900px){
+  .callGrid{grid-template-columns:1fr;}
 }
 
 .stage{
