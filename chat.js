@@ -317,7 +317,15 @@ function createPeerConnection() {
     config: {
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" }
+        { urls: "stun:stun1.l.google.com:19302" },
+        {
+          urls: [
+            "turn:relay.backups.cz:80",
+            "turn:relay.backups.cz:443"
+          ],
+          username: "homeo",
+          credential: "homeo"
+        }
       ]
     }
   });
