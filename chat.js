@@ -320,12 +320,17 @@ async function createCallRequest(calleeUid) {
 function setupIncomingCallBanner() {
   incomingCallBanner.id = "incomingCall";
   incomingCallBanner.className = "incomingCall hidden";
+  addDebugLog(`🔔 Configurando banner de llamada entrante...`);
   if (headerElement?.parentNode) {
     headerElement.parentNode.insertBefore(incomingCallBanner, headerElement.nextSibling);
+    addDebugLog(`✅ Banner insertado en el DOM`);
+  } else {
+    addDebugLog(`❌ headerElement o su parentNode no existen`);
   }
 }
 
 function listenIncomingCalls() {
+  addDebugLog(`🔊 Iniciando escucha de llamadas entrantes para ${me.uid}...`);
   const incomingQuery = query(
     collection(db, "llamadas"),
     where("callee", "==", me.uid),
@@ -333,14 +338,19 @@ function listenIncomingCalls() {
   );
 
   onSnapshot(incomingQuery, (snapshot) => {
+    addDebugLog(`📥 Snapshot de llamadas entrantes: ${snapshot.docs.length} documento(s)`);
     if (snapshot.empty) {
+      addDebugLog(`⚠️ Sin llamadas entrantes en este momento`);
       hideIncomingCall();
       return;
     }
 
     const callDoc = snapshot.docs[0];
-    showIncomingCall(callDoc.id, callDoc.data());
+    const callData = callDoc.data();
+    addDebugLog(`🔔 LLAMADA ENTRANTE DETECTADA: de ${callData.callerName}, estado=${callData.estado}`);
+    showIncomingCall(callDoc.id, callData);
   }, (error) => {
+    addDebugLog(`❌ Error escuchando llamadas entrantes: ${error.message}`);
     console.error("Error al escuchar llamadas entrantes:", error);
   });
 }
@@ -591,13 +601,17 @@ function cleanupCallSession() {
 }
 
 function showIncomingCall(callId, callData) {
-  if (activeIncomingCallId === callId) return;
+  if (activeIncomingCallId === callId) {
+    addDebugLog(`⏭️ Llamada ${callId} ya está activa, ignorando duplicado`);
+    return;
+  }
+  addDebugLog(`🎯 Mostrando notificación de llamada entrante de ${callData.callerName}`);
   activeIncomingCallId = callId;
 
   incomingCallBanner.innerHTML = `
     <div style="flex:1; min-width:0;">
       <strong style="display:block; color:var(--text);">Llamada entrante</strong>
-      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien") } te está llamando.</span>
+      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien")} te está llamando.</span>
     </div>
     <div class="callActions">
       <button class="btn small primary" id="acceptCallBtn">Aceptar</button>
@@ -606,9 +620,11 @@ function showIncomingCall(callId, callData) {
   `;
 
   incomingCallBanner.classList.remove("hidden");
+  addDebugLog(`✅ Banner visible, botones disponibles`);
 
   const acceptBtn = document.getElementById("acceptCallBtn");
   const rejectBtn = document.getElementById("rejectCallBtn");
+  addDebugLog(`🔘 Botones encontrados: Accept=${acceptBtn ? "✅" : "❌"}, Reject=${rejectBtn ? "✅" : "❌"}`);
 
   if (acceptBtn) {
     acceptBtn.onclick = async () => {
