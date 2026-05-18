@@ -45,12 +45,11 @@ let activeIncomingCallId = null;
 let callSessionId = null;
 let callRef = null;
 let callStream = null;
-let callPc = null;
+let callPeer = null;
 let callDocUnsubscribe = null;
 let isCaller = false;
-let callAnswered = false;
 let callOverlayOpen = false;
-let receivedCandidates = new Set();
+let receivedSignals = new Set();
 
 callLink.addEventListener("click", handleCallClick);
 
@@ -288,9 +287,6 @@ function setupCallSession(callId, remoteName) {
     .then(async () => {
       createPeerConnection();
       listenCallDocument();
-      if (isCaller) {
-        await createOffer();
-      }
     })
     .catch((error) => {
       console.error("Error iniciando medios para la llamada:", error);
@@ -306,45 +302,65 @@ async function startLocalMedia() {
 }
 
 function createPeerConnection() {
-  if (callPc) return;
-  callPc = new RTCPeerConnection({
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" }
-      // Add a TURN server here if you need reliable connectivity across strict NAT/firewalls.
-    ]
+  if (callPeer || !callStream) return;
+  const SimplePeer = window.SimplePeer;
+  if (!SimplePeer) {
+    console.error("SimplePeer no está disponible. Verifica el script externo.");
+    callStateLabel.textContent = "No se pudo iniciar la llamada.";
+    return;
+  }
+
+  callPeer = new SimplePeer({
+    initiator: isCaller,
+    trickle: true,
+    stream: callStream,
+    config: {
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" }
+      ]
+    }
   });
 
-  callPc.onicecandidate = async (event) => {
-    if (event.candidate) {
-      await addIceCandidate(event.candidate).catch((error) => {
-        console.error("Error guardando candidato local:", error);
-      });
+  callPeer.on("signal", async (signalData) => {
+    if (!callRef) return;
+    try {
+      await setDoc(callRef, {
+        signals: arrayUnion({
+          from: me.uid,
+          signal: signalData,
+          createdAt: serverTimestamp()
+        })
+      }, { merge: true });
+    } catch (error) {
+      console.error("Error guardando señal WebRTC:", error);
     }
-  };
+  });
 
-  callPc.ontrack = (event) => {
-    const [remoteStream] = event.streams;
+  callPeer.on("stream", (remoteStream) => {
     if (remoteStream) {
       callRemoteVideo.srcObject = remoteStream;
       callRemoteVideo.play().catch(() => {});
       callStateLabel.textContent = "Conectado";
       callHeaderSub.textContent = "Videollamada activa";
     }
-  };
+  });
 
-  callPc.onconnectionstatechange = () => {
-    if (!callPc) return;
-    if (callPc.connectionState === "connected") {
-      callStateLabel.textContent = "Conectado";
-    } else if (callPc.connectionState === "disconnected" || callPc.connectionState === "failed") {
-      callStateLabel.textContent = "La conexión se interrumpió.";
-    } else if (callPc.connectionState === "closed") {
-      callStateLabel.textContent = "Llamada finalizada.";
-    }
-  };
+  callPeer.on("connect", () => {
+    callStateLabel.textContent = "Conectado";
+    callHeaderSub.textContent = "Videollamada activa";
+  });
 
-  callStream?.getTracks().forEach((track) => callPc.addTrack(track, callStream));
+  callPeer.on("close", () => {
+    callStateLabel.textContent = "Llamada finalizada.";
+    closeOverlay();
+    cleanupCallSession();
+  });
+
+  callPeer.on("error", (err) => {
+    console.error("Error en SimplePeer:", err);
+    callStateLabel.textContent = "Error en la llamada.";
+  });
 }
 
 function listenCallDocument() {
@@ -367,69 +383,29 @@ function listenCallDocument() {
       return;
     }
 
-    const candidatesKey = isCaller ? "calleeCandidates" : "callerCandidates";
-    const candidates = Array.isArray(data[candidatesKey]) ? data[candidatesKey] : [];
-    for (const candidateData of candidates) {
-      const candidateKey = `${candidateData.candidate}|${candidateData.sdpMid}|${candidateData.sdpMLineIndex}`;
-      if (receivedCandidates.has(candidateKey)) continue;
-      receivedCandidates.add(candidateKey);
-      try {
-        await callPc.addIceCandidate(new RTCIceCandidate(candidateData));
-      } catch (error) {
-        console.error("Error agregando candidato remoto:", error);
+    const signals = Array.isArray(data.signals) ? data.signals : [];
+    for (const signalItem of signals) {
+      if (!signalItem || signalItem.from === me.uid) continue;
+      const signalKey = JSON.stringify(signalItem.signal);
+      if (receivedSignals.has(signalKey)) continue;
+      receivedSignals.add(signalKey);
+      if (callPeer) {
+        try {
+          callPeer.signal(signalItem.signal);
+        } catch (error) {
+          console.error("Error al procesar señal remota:", error);
+        }
       }
     }
 
-    if (!isCaller && data.offer && !callAnswered) {
-      await answerCall(data.offer).catch((error) => {
-        console.error("Error al responder oferta:", error);
-      });
+    if (!isCaller && data.estado === "activa") {
+      callStateLabel.textContent = "Aceptando llamada...";
     }
 
-    if (isCaller && data.answer && callPc && !callPc.currentRemoteDescription) {
-      await callPc.setRemoteDescription(new RTCSessionDescription(data.answer));
+    if (isCaller && data.estado === "activa") {
       callStateLabel.textContent = "Conectando...";
     }
   });
-}
-
-async function createOffer() {
-  if (!callPc) return;
-  const offerDescription = await callPc.createOffer();
-  await callPc.setLocalDescription(offerDescription);
-  await setDoc(callRef, {
-    offer: {
-      type: offerDescription.type,
-      sdp: offerDescription.sdp
-    },
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-  callStateLabel.textContent = "Llamando...";
-}
-
-async function answerCall(offer) {
-  if (!callPc) return;
-  callAnswered = true;
-  await callPc.setRemoteDescription(new RTCSessionDescription(offer));
-  const answerDescription = await callPc.createAnswer();
-  await callPc.setLocalDescription(answerDescription);
-  await setDoc(callRef, {
-    answer: {
-      type: answerDescription.type,
-      sdp: answerDescription.sdp
-    },
-    estado: "activa",
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-  callStateLabel.textContent = "Conectando...";
-}
-
-async function addIceCandidate(candidate) {
-  if (!callRef) return;
-  const candidatesField = isCaller ? "callerCandidates" : "calleeCandidates";
-  await setDoc(callRef, {
-    [candidatesField]: arrayUnion(candidate.toJSON())
-  }, { merge: true });
 }
 
 async function endCall() {
@@ -457,10 +433,10 @@ function closeOverlay() {
 function cleanupCallSession() {
   if (callDocUnsubscribe) callDocUnsubscribe();
   callDocUnsubscribe = null;
-  receivedCandidates.clear();
-  if (callPc) {
-    callPc.close();
-    callPc = null;
+  receivedSignals.clear();
+  if (callPeer) {
+    callPeer.destroy();
+    callPeer = null;
   }
   if (callStream) {
     callStream.getTracks().forEach((track) => track.stop());
@@ -468,7 +444,6 @@ function cleanupCallSession() {
   }
   callSessionId = null;
   callRef = null;
-  callAnswered = false;
 }
 
 function showIncomingCall(callId, callData) {
