@@ -165,14 +165,16 @@ function renderHeader() {
     title.textContent = activeConversation.nombre || "Grupo";
     subtitle.textContent = `${activeConversation.miembros?.length || 0} miembros`;
     headerAvatar.textContent = initials(activeConversation.nombre || "Grupo");
+    callLink.classList.add("disabled");
+    callLink.href = "videollamada.html";
   } else {
     const otherUid = activeConversation.miembros?.find((uid) => uid !== me.uid);
     title.textContent = activeConversation.nombres?.[otherUid] || "Chat privado";
     subtitle.textContent = "Chat individual";
     headerAvatar.textContent = initials(title.textContent);
+    callLink.href = `videollamada.html?c=${activeConversation.id}`;
+    callLink.classList.remove("disabled");
   }
-  callLink.href = `videollamada.html?c=${activeConversation.id}`;
-  callLink.classList.remove("disabled");
 }
 
 function bindMessages(id) {
