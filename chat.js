@@ -3,6 +3,7 @@ import {
   addDoc,
   arrayUnion,
   collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
@@ -338,38 +339,24 @@ function setupIncomingCallBanner() {
 function listenIncomingCalls() {
   addDebugLog(`🔊 Iniciando escucha de llamadas entrantes para ${me.uid}...`);
   
-  // Escuchar TODAS las colecciones de intentos de llamada
-  const conversationsRef = collection(db, "llamadas");
-  const unsubscribers = [];
+  // Usar collectionGroup para escuchar TODOS los "attempts" en toda la BD
+  const attemptsQuery = query(
+    collectionGroup(db, "attempts"),
+    where("callee", "==", me.uid),
+    where("estado", "==", "invitando")
+  );
 
-  // Esto requiere una consulta más compleja. Por ahora, escuchamos la colección de llamadas raíz
-  // y luego consultamos sus subcollections
-  onSnapshot(conversationsRef, async (snapshot) => {
-    for (const convDoc of snapshot.docs) {
-      const conversationId = convDoc.id;
+  onSnapshot(attemptsQuery, (snapshot) => {
+    snapshot.forEach((attemptDoc) => {
+      const attemptData = attemptDoc.data();
+      const conversationId = attemptData.conversationId;
+      const attemptId = attemptDoc.id;
       
-      // Escuchar intentos de esta conversación
-      const attemptsRef = collection(db, `llamadas/${conversationId}/attempts`);
-      const attemptQuery = query(
-        attemptsRef,
-        where("callee", "==", me.uid),
-        where("estado", "==", "invitando")
-      );
-
-      onSnapshot(attemptQuery, (attemptSnapshot) => {
-        if (attemptSnapshot.empty) {
-          addDebugLog(`⚠️ Sin intentos de llamada entrante en ${conversationId}`);
-          return;
-        }
-
-        const attemptDoc = attemptSnapshot.docs[0];
-        const attemptData = attemptDoc.data();
-        addDebugLog(`🔔 LLAMADA ENTRANTE DETECTADA: de ${attemptData.callerName}, estado=${attemptData.estado}`);
-        showIncomingCall(attemptDoc.id, attemptData, conversationId);
-      });
-    }
+      addDebugLog(`🔔 LLAMADA ENTRANTE DETECTADA: de ${attemptData.callerName}, conversación: ${conversationId}, estado=${attemptData.estado}`);
+      showIncomingCall(attemptId, attemptData, conversationId);
+    });
   }, (error) => {
-    addDebugLog(`❌ Error escuchando conversaciones: ${error.message}`);
+    addDebugLog(`❌ Error escuchando llamadas entrantes: ${error.message}`);
   });
 }
 

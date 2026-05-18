@@ -37,17 +37,23 @@ service cloud.firestore {
         // Caller puede crear y modificar
         allow create: if request.auth.uid != null && request.resource.data.caller == request.auth.uid;
         
-        // Caller y Callee pueden leer
+        // Caller y Callee pueden leer (incluyendo collection group queries)
         allow read: if request.auth.uid != null && 
           (request.auth.uid == resource.data.caller || 
            request.auth.uid == resource.data.callee);
         
-        // Caller puede actualizar su propio documento
-        // Callee puede aceptar (cambiar estado a activa)
+        // Caller y Callee pueden actualizar
         allow update: if request.auth.uid != null && 
           (request.auth.uid == resource.data.caller || 
            request.auth.uid == resource.data.callee);
       }
+    }
+    
+    // COLLECTION GROUP QUERIES para "attempts"
+    match /{path=**}/attempts/{attemptId} {
+      allow read: if request.auth.uid != null &&
+        (request.auth.uid == resource.data.caller ||
+         request.auth.uid == resource.data.callee);
     }
   }
 }
