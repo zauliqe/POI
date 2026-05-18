@@ -331,30 +331,36 @@ async function createCallRequest(calleeUid) {
 function setupIncomingCallBanner() {
   incomingCallBanner.id = "incomingCall";
   incomingCallBanner.className = "incomingCall hidden";
-  addDebugLog(`🔔 Configurando modal de llamada entrante...`);
-  document.body.appendChild(incomingCallBanner);
-  addDebugLog(`✅ Modal de llamada insertado en el DOM`);
+  addDebugLog(`🔔 Configurando banner de llamada entrante...`);
+  if (headerElement?.parentNode) {
+    headerElement.parentNode.insertBefore(incomingCallBanner, headerElement.nextSibling);
+    addDebugLog(`✅ Banner insertado en el DOM`);
+  } else {
+    addDebugLog(`❌ headerElement o su parentNode no existen`);
+  }
 }
 
 function listenIncomingCalls() {
   addDebugLog(`🔊 Iniciando escucha de llamadas entrantes para ${me.uid}...`);
   
-  // Usar collectionGroup para escuchar TODOS los "attempts" en toda la BD
-  const attemptsQuery = query(
+  // Usar collectionGroup para escuchar TODOS los intentos en TODAS las conversaciones
+  const attemptQuery = query(
     collectionGroup(db, "attempts"),
     where("callee", "==", me.uid),
     where("estado", "==", "invitando")
   );
 
-  onSnapshot(attemptsQuery, (snapshot) => {
-    snapshot.forEach((attemptDoc) => {
+  onSnapshot(attemptQuery, (snapshot) => {
+    for (const attemptDoc of snapshot.docs) {
       const attemptData = attemptDoc.data();
       const conversationId = attemptData.conversationId;
-      const attemptId = attemptDoc.id;
       
-      addDebugLog(`🔔 LLAMADA ENTRANTE DETECTADA: de ${attemptData.callerName}, conversación: ${conversationId}, estado=${attemptData.estado}`);
-      showIncomingCall(attemptId, attemptData, conversationId);
-    });
+      // Verificar si ya hemos mostrado esta notificación
+      if (activeIncomingCallId !== attemptDoc.id) {
+        addDebugLog(`🔔 LLAMADA ENTRANTE DETECTADA: de ${attemptData.callerName}, intento=${attemptDoc.id}`);
+        showIncomingCall(attemptDoc.id, attemptData, conversationId);
+      }
+    }
   }, (error) => {
     addDebugLog(`❌ Error escuchando llamadas entrantes: ${error.message}`);
   });
@@ -627,22 +633,22 @@ function showIncomingCall(attemptId, callData, conversationId) {
     addDebugLog(`⏭️ Intento ${attemptId} ya está activo, ignorando duplicado`);
     return;
   }
-  addDebugLog(`🎯 Mostrando modal de llamada entrante de ${callData.callerName}`);
+  addDebugLog(`🎯 Mostrando notificación de llamada entrante de ${callData.callerName}`);
   activeIncomingCallId = attemptId;
 
   incomingCallBanner.innerHTML = `
-    <div>
-      <strong>📞 Llamada entrante</strong>
-      <span>${escapeHtml(callData.callerName || "Alguien")} te está llamando</span>
+    <div style="flex:1; min-width:0;">
+      <strong style="display:block; color:var(--text);">Llamada entrante</strong>
+      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien")} te está llamando.</span>
     </div>
     <div class="callActions">
-      <button class="btn primary" id="acceptCallBtn">✓ Aceptar</button>
-      <button class="btn danger" id="rejectCallBtn">✕ Rechazar</button>
+      <button class="btn small primary" id="acceptCallBtn">Aceptar</button>
+      <button class="btn small danger" id="rejectCallBtn">Rechazar</button>
     </div>
   `;
 
   incomingCallBanner.classList.remove("hidden");
-  addDebugLog(`✅ Modal visible, botones disponibles`);
+  addDebugLog(`✅ Banner visible, botones disponibles`);
 
   const acceptBtn = document.getElementById("acceptCallBtn");
   const rejectBtn = document.getElementById("rejectCallBtn");
