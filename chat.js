@@ -444,14 +444,40 @@ function createPeerConnection() {
   callManager.setPeerReady(callSessionId, true);
   callManager.updateCallStatus(callSessionId, "connecting");
 
+  // CRÍTICO: Para non-initiator (callee), marcar listo INMEDIATAMENTE
+  // Porque SimplePeer non-initiator está listo para procesar offers desde su creación
+  // El evento "signal" (answer) solo se emite DESPUÉS de procesar un offer
+  if (!isCaller) {
+    // Pequeño timeout para asegurar que el peer esté completamente inicializado
+    setTimeout(() => {
+      if (!peerSignalReady && callPeer && callPeer._pc) {
+        peerSignalReady = true;
+        addDebugLog(`🎯 Non-initiator listo para procesar signals (peer creado)`);
+        
+        // Procesar signals encolados (especialmente el offer)
+        if (pendingSignals.length > 0) {
+          addDebugLog(`📦 Procesando ${pendingSignals.length} signals pendientes...`);
+          const pending = pendingSignals.splice(0);
+          for (const sig of pending) {
+            try {
+              callPeer.signal(sig);
+              addDebugLog(`✅ Signal pendiente procesado (${sig.type})`);
+            } catch (error) {
+              addDebugLog(`❌ Error procesando signal pendiente: ${error.message}`);
+            }
+          }
+        }
+      }
+    }, 50); // 50ms debería ser suficiente
+  }
+
   callPeer.on("signal", async (signalData) => {
     if (!callRef) return;
     
-    // CRÍTICO: Marcar que SimplePeer está listo para recibir signals
-    // Esto ocurre cuando SimplePeer ha emitido su propio offer/answer
-    if (!peerSignalReady) {
+    // Para initiator (caller): marcar listo cuando emita su primer signal (offer)
+    if (isCaller && !peerSignalReady) {
       peerSignalReady = true;
-      addDebugLog(`🎯 SimplePeer listo para recibir signals remotos (${signalData.type} emitido)`);
+      addDebugLog(`🎯 Initiator listo para recibir signals remotos (${signalData.type} emitido)`);
       
       // Procesar signals pendientes
       if (pendingSignals.length > 0) {
@@ -460,7 +486,7 @@ function createPeerConnection() {
         for (const sig of pending) {
           try {
             callPeer.signal(sig);
-            addDebugLog(`✅ Signal pendiente procesado`);
+            addDebugLog(`✅ Signal pendiente procesado (${sig.type})`);
           } catch (error) {
             addDebugLog(`❌ Error procesando signal pendiente: ${error.message}`);
           }
@@ -589,7 +615,9 @@ function listenCallDocument() {
         // Si no, encolar el signal para procesarlo después
         if (!peerSignalReady) {
           addDebugLog(`⏳ SimplePeer aún no listo, encolando signal ${signalItem.signal.type}`);
-          pendingSignals.push(signalItem.signal);
+          if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(signalItem.signal))) {
+            pendingSignals.push(signalItem.signal);
+          }
           continue;
         }
         
@@ -614,6 +642,27 @@ function listenCallDocument() {
       }
       if (newSignals > 0) {
         addDebugLog(`📦 ${newSignals} signals nuevos procesados`);
+      }
+      
+      // IMPORTANTE: Si peerSignalReady es ahora true pero hay signals encolados,
+      // procesarlos en el siguiente ciclo
+      if (peerSignalReady && pendingSignals.length > 0) {
+        addDebugLog(`⚠️ Peer está listo pero hay ${pendingSignals.length} signals encolados, procesando...`);
+        const pending = pendingSignals.splice(0);
+        for (const sig of pending) {
+          if (!callPeer || !callPeer._pc) {
+            addDebugLog(`⚠️ Peer destruido antes de procesar signal encolado`);
+            break;
+          }
+          try {
+            await new Promise(resolve => setTimeout(resolve, 10));
+            callPeer.signal(sig);
+            callManager.recordSignalApplied(callSessionId, sig.type);
+            addDebugLog(`✅ Signal encolado procesado (${sig.type})`);
+          } catch (error) {
+            addDebugLog(`❌ Error procesando signal encolado: ${error.message}`);
+          }
+        }
       }
     } else if (!callPeer && signals.length > 0) {
       addDebugLog(`⏳ callPeer aún no existe, esperando...`);
