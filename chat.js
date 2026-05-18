@@ -301,6 +301,10 @@ async function createCallRequest(calleeUid) {
     }
   }
 
+  // RESETEAR signals para evitar conflictos de la llamada anterior
+  receivedSignals.clear();
+  addDebugLog(`🧹 Limpiando signals anteriores...`);
+
   await setDoc(callRef, {
     conversationId: callId,
     caller: me.uid,
@@ -308,6 +312,7 @@ async function createCallRequest(calleeUid) {
     callerName: profile.nombre || profile.usuario || "Yo",
     calleeName: activeConversation.nombres?.[calleeUid] || "Usuario",
     estado: "invitando",
+    signals: [], // ← RESETEAR ARRAY DE SIGNALS
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   }, { merge: true });
@@ -316,6 +321,7 @@ async function createCallRequest(calleeUid) {
   isCaller = true;
   setupCallSession(callId, activeConversation.nombres?.[calleeUid] || "Usuario");
 }
+
 
 function setupIncomingCallBanner() {
   incomingCallBanner.id = "incomingCall";
@@ -493,6 +499,8 @@ function listenCallDocument() {
 
     if (data.estado === "rechazada") {
       addDebugLog(`🚫 Llamada rechazada`);
+      receivedSignals.clear();
+      addDebugLog(`🧹 Limpiando signals...`);
       callStateLabel.textContent = "La llamada fue rechazada.";
       hideCallOverlay();
       cleanupCallSession();
@@ -501,6 +509,8 @@ function listenCallDocument() {
 
     if (data.estado === "finalizada") {
       addDebugLog(`🏁 Llamada finalizada`);
+      receivedSignals.clear();
+      addDebugLog(`🧹 Limpiando signals...`);
       callStateLabel.textContent = "La llamada terminó.";
       hideCallOverlay();
       cleanupCallSession();
@@ -557,6 +567,7 @@ async function endCall() {
       await setDoc(callRef, {
         estado: "finalizada",
         finalizadaPor: me.uid,
+        signals: [], // ← LIMPIAR SIGNALS al finalizar
         updatedAt: serverTimestamp()
       }, { merge: true });
       addDebugLog(`✅ Llamada marcada como finalizada en Firestore`);
@@ -564,6 +575,8 @@ async function endCall() {
       addDebugLog(`⚠️ Error marcando llamada como finalizada: ${error.message}`);
     }
   }
+  receivedSignals.clear();
+  addDebugLog(`🧹 Limpiando signals locales...`);
   closeOverlay();
   cleanupCallSession();
 }
@@ -627,6 +640,10 @@ function showIncomingCall(callId, callData) {
   if (acceptBtn) {
     acceptBtn.onclick = async () => {
       addDebugLog(`✅ Llamada aceptada, actualizando estado...`);
+      // RESETEAR signals para evitar conflictos de la llamada anterior
+      receivedSignals.clear();
+      addDebugLog(`🧹 Limpiando signals anteriores...`);
+      
       await setDoc(doc(db, "llamadas", callId), {
         estado: "activa",
         acceptedAt: serverTimestamp(),
@@ -643,9 +660,13 @@ function showIncomingCall(callId, callData) {
 
   if (rejectBtn) {
     rejectBtn.onclick = async () => {
+      receivedSignals.clear();
+      addDebugLog(`🧹 Llamada rechazada, limpiando signals...`);
+      
       await setDoc(doc(db, "llamadas", callId), {
         estado: "rechazada",
         rechazadoPor: me.uid,
+        signals: [], // ← LIMPIAR SIGNALS al rechazar
         updatedAt: serverTimestamp()
       }, { merge: true });
       hideIncomingCall();
