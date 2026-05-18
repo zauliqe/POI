@@ -333,6 +333,84 @@ a:hover{opacity:.95}
 
 .callActions{display:flex; gap:10px; flex-wrap:wrap;}
 
+.callOverlay{
+  position:fixed;
+  inset:0;
+  z-index:999;
+  background:rgba(2,10,9,.75);
+  display:grid;
+  place-items:center;
+  padding:20px;
+}
+
+.callOverlay.hidden{display:none;}
+
+.callModal{
+  width:min(1100px,100%);
+  max-width:1100px;
+  border-radius:24px;
+  background:linear-gradient(180deg, rgba(9,28,26,.96), rgba(6,18,17,.96));
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 30px 80px rgba(0,0,0,.55);
+  padding:22px;
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+}
+
+.callModalHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+}
+
+.callModalTitle{font-size:22px; font-weight:700;}
+
+.callStatusLabel{color:var(--muted);}
+
+.callVideoGrid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+}
+
+.callVideoCard{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  padding:14px;
+}
+
+.videoLabel{
+  color:var(--muted);
+  font-size:13px;
+  letter-spacing:.2px;
+}
+
+.callVideo{
+  width:100%;
+  aspect-ratio:16/9;
+  border-radius:18px;
+  background:rgba(0,0,0,.18);
+  object-fit:cover;
+}
+
+.callControls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  justify-content:flex-end;
+}
+
+@media (max-width: 900px) {
+  .callModal{padding:16px;}
+  .callVideoGrid{grid-template-columns:1fr;}
+}
+
 .stage{
   border-radius:var(--r24);
   background:linear-gradient(180deg, rgba(8,25,23,.45), rgba(6,18,17,.25));
