@@ -14,6 +14,7 @@ import {
   where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { currentConversationId, formatDate, initials, isUserOnline, privateConversationId, requireAuth } from "./app.js";
+import { callManager } from "./call-manager.js";
 const sendButton = document.getElementById("enviar");
 const input = document.getElementById("mensaje");
 const chat = document.getElementById("chat");
@@ -351,6 +352,13 @@ function listenIncomingCalls() {
 
 function setupCallSession(callId, remoteName) {
   if (!callOverlay) return;
+  
+  // Crear en call manager
+  callManager.createCall(callId, {
+    isCaller: isCaller,
+    remoteName: remoteName
+  });
+  
   callSessionId = callId;
   callOverlayOpen = true;
   callOverlay.classList.remove("hidden");
@@ -363,12 +371,14 @@ function setupCallSession(callId, remoteName) {
   callRef = doc(db, "llamadas", callId);
   startLocalMedia()
     .then(async () => {
+      callManager.setStreamReady(callSessionId, true);
       createPeerConnection();
       listenCallDocument();
       addDebugLog(`✅ Sesión de llamada iniciada`);
     })
     .catch((error) => {
       addDebugLog(`❌ Error iniciando medios para la llamada: ${error.message}`);
+      callManager.updateCallStatus(callSessionId, "failed");
       callStateLabel.textContent = "No se pudo acceder a la cámara o al micrófono.";
     });
 }
@@ -423,6 +433,10 @@ function createPeerConnection() {
   });
 
   addDebugLog(`📡 SimplePeer creado. Stream local: ${callStream?.getTracks().length} tracks`);
+  
+  // Marcar que el peer está listo
+  callManager.setPeerReady(callSessionId, true);
+  callManager.updateCallStatus(callSessionId, "connecting");
 
   callPeer.on("signal", async (signalData) => {
     if (!callRef) return;
@@ -454,6 +468,7 @@ function createPeerConnection() {
 
   callPeer.on("connect", () => {
     addDebugLog(`✅ Peer conectado exitosamente`);
+    callManager.updateCallStatus(callSessionId, "connected");
     callStateLabel.textContent = "Conectado";
     callHeaderSub.textContent = "Videollamada activa";
   });
@@ -463,13 +478,23 @@ function createPeerConnection() {
   });
 
   callPeer.on("close", () => {
-    addDebugLog(`🔌 Peer desconectado, pero NO cierra overlay automáticamente`);
+    addDebugLog(`🔌 Peer desconectado`);
+    callManager.updateCallStatus(callSessionId, "failed");
     callStateLabel.textContent = "Desconectado - intenta reconectar";
+    callPeer = null;
   });
 
   callPeer.on("error", (err) => {
     addDebugLog(`❌ Error SimplePeer: ${err.message}`);
+    callManager.updateCallStatus(callSessionId, "failed");
     callStateLabel.textContent = "Error: " + err.message;
+    // Destruir peer si hay error crítico
+    if (callPeer) {
+      try {
+        callPeer.destroy();
+      } catch (e) {}
+      callPeer = null;
+    }
   });
 }
 
@@ -485,9 +510,17 @@ function listenCallDocument() {
     const data = snapshot.data();
     addDebugLog(`📄 Estado llamada: ${data.estado}, signals: ${data.signals?.length || 0}, peer: ${callPeer ? "✅" : "❌"}`);
 
+    // Verificar salud de la llamada
+    const callHealth = callManager.isCallHealthy(callSessionId);
+    if (!callHealth && data.estado !== "finalizada") {
+      addDebugLog(`⚠️ Llamada no en estado saludable, ignorando signals`);
+      return;
+    }
+
     if (data.estado === "rechazada") {
       addDebugLog(`🚫 Llamada rechazada`);
       receivedSignals.clear();
+      callManager.endCall(callSessionId);
       addDebugLog(`🧹 Limpiando signals...`);
       callStateLabel.textContent = "La llamada fue rechazada.";
       hideCallOverlay();
@@ -498,6 +531,7 @@ function listenCallDocument() {
     if (data.estado === "finalizada") {
       addDebugLog(`🏁 Llamada finalizada`);
       receivedSignals.clear();
+      callManager.endCall(callSessionId);
       addDebugLog(`🧹 Limpiando signals...`);
       callStateLabel.textContent = "La llamada terminó.";
       hideCallOverlay();
@@ -505,23 +539,35 @@ function listenCallDocument() {
       return;
     }
 
-    // Procesar signals solo si callPeer existe
+    // Procesar signals solo si callPeer existe Y está en buen estado
     const signals = Array.isArray(data.signals) ? data.signals : [];
     let newSignals = 0;
     
-    if (callPeer && signals.length > 0) {
+    if (callPeer && signals.length > 0 && callHealth) {
       for (const signalItem of signals) {
         if (!signalItem || signalItem.from === me.uid) continue;
         const signalKey = JSON.stringify(signalItem.signal);
         if (receivedSignals.has(signalKey)) continue;
+        
+        // Validar que el peer sigue existiendo y no está destruido
+        if (!callPeer || !callPeer._pc) {
+          addDebugLog(`⚠️ Peer fue destruido, ignorando signal ${signalItem.signal.type}`);
+          break;
+        }
+
         receivedSignals.add(signalKey);
         newSignals++;
         addDebugLog(`📥 Signal remoto recibido: ${signalItem.signal.type}`);
         try {
           callPeer.signal(signalItem.signal);
+          callManager.recordSignalApplied(callSessionId, signalItem.signal.type);
           addDebugLog(`✅ Signal aplicado a peer`);
         } catch (error) {
           addDebugLog(`❌ Error aplicando signal: ${error.message}`);
+          if (error.message.includes("destroyed")) {
+            addDebugLog(`🔴 PEER DESTRUIDO - deteniendo procesamiento`);
+            break;
+          }
         }
       }
       if (newSignals > 0) {
@@ -545,6 +591,7 @@ function listenCallDocument() {
     }
   }, (error) => {
     addDebugLog(`❌ Error escuchando documento: ${error.message}`);
+    callManager.updateCallStatus(callSessionId, "failed");
   });
 }
 
