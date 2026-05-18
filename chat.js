@@ -1,6 +1,7 @@
 import { db } from "./Firebase.js";
 import {
   addDoc,
+  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -46,10 +47,10 @@ let callRef = null;
 let callStream = null;
 let callPc = null;
 let callDocUnsubscribe = null;
-let callCandidatesUnsubscribe = null;
 let isCaller = false;
 let callAnswered = false;
 let callOverlayOpen = false;
+let receivedCandidates = new Set();
 
 callLink.addEventListener("click", handleCallClick);
 
@@ -287,7 +288,6 @@ function setupCallSession(callId, remoteName) {
     .then(async () => {
       createPeerConnection();
       listenCallDocument();
-      listenCallCandidates();
       if (isCaller) {
         await createOffer();
       }
@@ -308,7 +308,11 @@ async function startLocalMedia() {
 function createPeerConnection() {
   if (callPc) return;
   callPc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    iceServers: [
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" }
+      // Add a TURN server here if you need reliable connectivity across strict NAT/firewalls.
+    ]
   });
 
   callPc.onicecandidate = async (event) => {
@@ -363,6 +367,19 @@ function listenCallDocument() {
       return;
     }
 
+    const candidatesKey = isCaller ? "calleeCandidates" : "callerCandidates";
+    const candidates = Array.isArray(data[candidatesKey]) ? data[candidatesKey] : [];
+    for (const candidateData of candidates) {
+      const candidateKey = `${candidateData.candidate}|${candidateData.sdpMid}|${candidateData.sdpMLineIndex}`;
+      if (receivedCandidates.has(candidateKey)) continue;
+      receivedCandidates.add(candidateKey);
+      try {
+        await callPc.addIceCandidate(new RTCIceCandidate(candidateData));
+      } catch (error) {
+        console.error("Error agregando candidato remoto:", error);
+      }
+    }
+
     if (!isCaller && data.offer && !callAnswered) {
       await answerCall(data.offer).catch((error) => {
         console.error("Error al responder oferta:", error);
@@ -372,22 +389,6 @@ function listenCallDocument() {
     if (isCaller && data.answer && callPc && !callPc.currentRemoteDescription) {
       await callPc.setRemoteDescription(new RTCSessionDescription(data.answer));
       callStateLabel.textContent = "Conectando...";
-    }
-  });
-}
-
-function listenCallCandidates() {
-  if (callCandidatesUnsubscribe) callCandidatesUnsubscribe();
-  const remoteCollection = collection(callRef, isCaller ? "calleeCandidates" : "callerCandidates");
-  callCandidatesUnsubscribe = onSnapshot(remoteCollection, async (snapshot) => {
-    for (const change of snapshot.docChanges()) {
-      if (change.type === "added") {
-        try {
-          await callPc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-        } catch (error) {
-          console.error("Error agregando candidato remoto:", error);
-        }
-      }
     }
   });
 }
@@ -424,8 +425,11 @@ async function answerCall(offer) {
 }
 
 async function addIceCandidate(candidate) {
-  const localCollection = collection(callRef, isCaller ? "callerCandidates" : "calleeCandidates");
-  await addDoc(localCollection, candidate.toJSON());
+  if (!callRef) return;
+  const candidatesField = isCaller ? "callerCandidates" : "calleeCandidates";
+  await setDoc(callRef, {
+    [candidatesField]: arrayUnion(candidate.toJSON())
+  }, { merge: true });
 }
 
 async function endCall() {
@@ -452,9 +456,8 @@ function closeOverlay() {
 
 function cleanupCallSession() {
   if (callDocUnsubscribe) callDocUnsubscribe();
-  if (callCandidatesUnsubscribe) callCandidatesUnsubscribe();
   callDocUnsubscribe = null;
-  callCandidatesUnsubscribe = null;
+  receivedCandidates.clear();
   if (callPc) {
     callPc.close();
     callPc = null;
