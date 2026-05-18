@@ -444,57 +444,71 @@ function createPeerConnection() {
   callManager.setPeerReady(callSessionId, true);
   callManager.updateCallStatus(callSessionId, "connecting");
 
-  // CRÍTICO: Para non-initiator (callee), marcar listo INMEDIATAMENTE
-  // Porque SimplePeer non-initiator está listo para procesar offers desde su creación
-  // El evento "signal" (answer) solo se emite DESPUÉS de procesar un offer
-  if (!isCaller) {
-    // Pequeño timeout para asegurar que el peer esté completamente inicializado
-    setTimeout(() => {
-      if (!peerSignalReady && callPeer && callPeer._pc) {
-        peerSignalReady = true;
-        addDebugLog(`🎯 Non-initiator listo para procesar signals (peer creado)`);
-        
-        // Procesar signals encolados (especialmente el offer)
-        if (pendingSignals.length > 0) {
-          addDebugLog(`📦 Procesando ${pendingSignals.length} signals pendientes...`);
-          const pending = pendingSignals.splice(0);
-          for (const sig of pending) {
-            try {
-              callPeer.signal(sig);
-              addDebugLog(`✅ Signal pendiente procesado (${sig.type})`);
-            } catch (error) {
-              addDebugLog(`❌ Error procesando signal pendiente: ${error.message}`);
-            }
-          }
-        }
+  // SOLUCIÓN ROBUSTA: Esperar confirmación real de que RTCPeerConnection está listo
+  // No confiar en event "signal" - esperar a que signalingState cambie
+  function waitForPeerReady() {
+    return new Promise((resolve) => {
+      if (!callPeer || !callPeer._pc) {
+        resolve();
+        return;
       }
-    }, 50); // 50ms debería ser suficiente
-  }
-
-  callPeer.on("signal", async (signalData) => {
-    if (!callRef) return;
-    
-    // Para initiator (caller): marcar listo cuando emita su primer signal (offer)
-    if (isCaller && !peerSignalReady) {
-      peerSignalReady = true;
-      addDebugLog(`🎯 Initiator listo para recibir signals remotos (${signalData.type} emitido)`);
       
-      // Procesar signals pendientes
-      if (pendingSignals.length > 0) {
-        addDebugLog(`📦 Procesando ${pendingSignals.length} signals pendientes...`);
-        const pending = pendingSignals.splice(0);
-        for (const sig of pending) {
-          try {
-            callPeer.signal(sig);
-            addDebugLog(`✅ Signal pendiente procesado (${sig.type})`);
-          } catch (error) {
-            addDebugLog(`❌ Error procesando signal pendiente: ${error.message}`);
-          }
+      const pc = callPeer._pc;
+      let resolved = false;
+      
+      // Opción 1: Escuchar cambio en signalingState
+      const handleStateChange = () => {
+        if (resolved) return;
+        const state = pc.signalingState;
+        addDebugLog(`📊 signalingState cambió a: ${state}`);
+        
+        if (state === "have-local-offer") {
+          resolved = true;
+          pc.removeEventListener("signalingstatechange", handleStateChange);
+          resolve();
+        }
+      };
+      
+      pc.addEventListener("signalingstatechange", handleStateChange);
+      
+      // Opción 2: Timeout de respaldo (máximo 1 segundo de espera)
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          pc.removeEventListener("signalingstatechange", handleStateChange);
+          addDebugLog(`🎯 Timeout: forzando peer como ready (${pc.signalingState})`);
+          resolve();
+        }
+      }, 1000);
+    });
+  }
+  
+  // Esperar a que peer esté listo ANTES de procesar cualquier signal
+  waitForPeerReady().then(() => {
+    peerSignalReady = true;
+    addDebugLog(`🎯 ¡Peer LISTO para procesar signals!`);
+    
+    // Procesar signals encolados
+    if (pendingSignals.length > 0 && callPeer && callPeer._pc) {
+      addDebugLog(`📦 Procesando ${pendingSignals.length} signals encolados inmediatamente...`);
+      const pending = pendingSignals.splice(0);
+      for (const sig of pending) {
+        if (!callPeer || !callPeer._pc) break;
+        try {
+          callPeer.signal(sig);
+          addDebugLog(`  ✅ Signal encolado aplicado: ${sig.type}`);
+        } catch (error) {
+          addDebugLog(`  ❌ Error: ${error.message}`);
+          pendingSignals.push(sig); // Reenencolar si falla
         }
       }
     }
+  });
+
+  callPeer.on("signal", async (signalData) => {
+    if (!callRef) return;
+    addDebugLog(`📤 Signal emitido localmente: ${signalData.type}`);
     
-    addDebugLog(`📤 Signal emitido: ${signalData.type}`);
     try {
       await setDoc(callRef, {
         signals: arrayUnion({
@@ -611,8 +625,7 @@ function listenCallDocument() {
 
         receivedSignals.add(signalKey);
         
-        // CRÍTICO: Validar que SimplePeer haya emitido su propio signal primero
-        // Si no, encolar el signal para procesarlo después
+        // CRÍTICO: Validar que SimplePeer haya estado listo Y verificar signalingState
         if (!peerSignalReady) {
           addDebugLog(`⏳ SimplePeer aún no listo, encolando signal ${signalItem.signal.type}`);
           if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(signalItem.signal))) {
@@ -621,11 +634,21 @@ function listenCallDocument() {
           continue;
         }
         
+        // IMPORTANTE: Validar que el signalingState permite este signal
+        // No procesar ANSWER si estamos en "stable" (sin oferta local)
+        const signalingState = callPeer._pc?.signalingState || "unknown";
+        if (signalItem.signal.type === "answer" && signalingState === "stable") {
+          addDebugLog(`⚠️ Ignorando ANSWER en estado 'stable' (no hay offer local yet). State: ${signalingState}`);
+          receivedSignals.delete(signalKey); // Permitir reintentar
+          pendingSignals.push(signalItem.signal);
+          continue;
+        }
+        
         newSignals++;
-        addDebugLog(`📥 Signal remoto recibido: ${signalItem.signal.type}`);
+        addDebugLog(`📥 Signal remoto (${signalItem.signal.type}) en estado '${signalingState}'`);
         try {
           // Pequeño delay para permitir que WebRTC procese correctamente
-          await new Promise(resolve => setTimeout(resolve, 10));
+          await new Promise(resolve => setTimeout(resolve, 20));
           callPeer.signal(signalItem.signal);
           callManager.recordSignalApplied(callSessionId, signalItem.signal.type);
           addDebugLog(`✅ Signal aplicado a peer`);
@@ -647,20 +670,32 @@ function listenCallDocument() {
       // IMPORTANTE: Si peerSignalReady es ahora true pero hay signals encolados,
       // procesarlos en el siguiente ciclo
       if (peerSignalReady && pendingSignals.length > 0) {
-        addDebugLog(`⚠️ Peer está listo pero hay ${pendingSignals.length} signals encolados, procesando...`);
+        addDebugLog(`⚠️ Reintentando ${pendingSignals.length} signals encolados...`);
         const pending = pendingSignals.splice(0);
         for (const sig of pending) {
           if (!callPeer || !callPeer._pc) {
             addDebugLog(`⚠️ Peer destruido antes de procesar signal encolado`);
             break;
           }
+          
+          const signalingState = callPeer._pc.signalingState;
+          if (sig.type === "answer" && signalingState === "stable") {
+            addDebugLog(`⏳ ANSWER aún no puede procesarse (estado: ${signalingState}), reencolando`);
+            pendingSignals.push(sig);
+            continue;
+          }
+          
           try {
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise(resolve => setTimeout(resolve, 20));
             callPeer.signal(sig);
             callManager.recordSignalApplied(callSessionId, sig.type);
             addDebugLog(`✅ Signal encolado procesado (${sig.type})`);
           } catch (error) {
             addDebugLog(`❌ Error procesando signal encolado: ${error.message}`);
+            if (error.message.includes("wrong state")) {
+              addDebugLog(`⏳ Reencolando signal (signalingState: ${callPeer._pc?.signalingState})`);
+              pendingSignals.push(sig);
+            }
           }
         }
       }
