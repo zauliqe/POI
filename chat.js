@@ -528,10 +528,11 @@ function createPeerConnection() {
 
   callPeer.on("signal", async (signalData) => {
     if (!callRef) return;
+    addDebugLog(`[EMIT] Signal emitido por SimplePeer: ${signalData.type}`);
     
     if (!peerSignalReady) {
       peerSignalReady = true;
-      addDebugLog(`PEER LISTO`);
+      addDebugLog(`[READY] SimplePeer ahora listo para recibir signals`);
       
       if (pendingSignals.length > 0 && callPeer && callPeer._pc) {
         const pending = pendingSignals.splice(0);
@@ -539,6 +540,8 @@ function createPeerConnection() {
           try {
             await new Promise(r => setTimeout(r, 15));
             callPeer.signal(sig);
+            // Marcar signal como recibido para no re-procesarlo desde snapshot
+            receivedSignals.add(JSON.stringify(sig));
           } catch (e) { }
         }
       }
@@ -607,12 +610,14 @@ function listenCallDocument() {
   if (callDocUnsubscribe) callDocUnsubscribe();
   
   callDocUnsubscribe = onSnapshot(callRef, async (snapshot) => {
-    if (!snapshot.exists() || !callPeer || !callPeer._pc) return;
+    if (!snapshot.exists() || !callPeer) return;
+    addDebugLog(`[SNAP] Snapshot recibido. Peer ok: ${!!callPeer}, _pc listo: ${!!callPeer._pc}`);
     
     const data = snapshot.data();
     
     // Estados terminales
     if (data.estado === "rechazada" || data.estado === "finalizada") {
+      addDebugLog(`[END] Llamada ${data.estado}`);
       receivedSignals.clear();
       callManager.endCall(callSessionId);
       callStateLabel.textContent = data.estado === "rechazada" ? "Rechazada" : "Finalizada";
@@ -621,10 +626,27 @@ function listenCallDocument() {
       return;
     }
     
-    // Procesar signals
+    // ⚠️ Si RTCPeerConnection aún no existe, ENCOLAR signals (no ignorar)
+    if (!callPeer._pc) {
+      const signals = Array.isArray(data.signals) ? data.signals : [];
+      for (const item of signals) {
+        if (!item || item.from === me.uid) continue;
+        const key = JSON.stringify(item.signal);
+        if (!receivedSignals.has(key)) {
+          receivedSignals.add(key);  // Marcar para evitar reprocessing
+          if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(item.signal))) {
+            pendingSignals.push(item.signal);
+          }
+        }
+      }
+      return;  // Aguarda siguiente snapshot cuando _pc exista
+    }
+    
+    // Procesar signals cuando _pc YA existe
     const signals = Array.isArray(data.signals) ? data.signals : [];
     const connState = callPeer._pc.connectionState;
     const sigState = callPeer._pc.signalingState;
+    addDebugLog(`[PROC] connState=${connState}, sigState=${sigState}, signals=${signals.length}`);
     
     for (const item of signals) {
       if (!item || item.from === me.uid) continue;
@@ -638,17 +660,8 @@ function listenCallDocument() {
         continue;
       }
       
-      // Si peer no est listo, encolar
-      if (!peerSignalReady) {
-        if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(item.signal))) {
-          pendingSignals.push(item.signal);
-        }
-        continue;
-      }
-      
-      // Si es ANSWER en stable, no procesar ahora - reintentar después
+      // Si es ANSWER en stable, no procesar - reintentar después
       if (item.signal.type === "answer" && sigState === "stable") {
-        addDebugLog(`[RETRY] ANSWER en estado 'stable', encolando para reintentar...`);
         receivedSignals.delete(key);
         if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(item.signal))) {
           pendingSignals.push(item.signal);
@@ -656,14 +669,13 @@ function listenCallDocument() {
         continue;
       }
       
-      // Procesar signal CON REINTENTOS automáticos
+      // Procesar signal CON REINTENTOS (siempre, cuando _pc existe)
       const success = await applySignalWithRetry(item.signal, 3, 100);
       if (success) {
-        addDebugLog(`[OK] Signal ${item.signal.type} procesado exitosamente`);
+        addDebugLog(`[✓] Signal ${item.signal.type} procesado`);
         callManager.recordSignalApplied(callSessionId, item.signal.type);
       } else {
-        addDebugLog(`[X] Signal ${item.signal.type} falló definitivamente`);
-        // Remover del received para poder reintentar en siguiente snapshot
+        addDebugLog(`[✗] Signal ${item.signal.type} falló`);
         receivedSignals.delete(key);
         if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(item.signal))) {
           pendingSignals.push(item.signal);
