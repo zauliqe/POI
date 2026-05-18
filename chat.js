@@ -1,7 +1,6 @@
 import { db } from "./Firebase.js";
 import {
   addDoc,
-  arrayUnion,
   collection,
   doc,
   getDoc,
@@ -45,11 +44,13 @@ let activeIncomingCallId = null;
 let callSessionId = null;
 let callRef = null;
 let callStream = null;
-let callPeer = null;
+let callJitsiApi = null;
+let callRoomName = null;
 let callDocUnsubscribe = null;
 let isCaller = false;
 let callOverlayOpen = false;
-let receivedSignals = new Set();
+let isAudioMuted = false;
+let isVideoMuted = false;
 
 callLink.addEventListener("click", handleCallClick);
 
@@ -229,20 +230,24 @@ async function createCallRequest(calleeUid) {
     return;
   }
 
+  const roomName = `CamOllin-${callId}-${Date.now()}`;
+
   await setDoc(callRef, {
     conversationId: callId,
     caller: me.uid,
     callee: calleeUid,
     callerName: profile.nombre || profile.usuario || "Yo",
     calleeName: activeConversation.nombres?.[calleeUid] || "Usuario",
+    roomName,
     estado: "invitando",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   }, { merge: true });
 
   callSessionId = callId;
+  callRoomName = roomName;
   isCaller = true;
-  setupCallSession(callId, activeConversation.nombres?.[calleeUid] || "Usuario");
+  setupCallSession(callId, activeConversation.nombres?.[calleeUid] || "Usuario", roomName);
 }
 
 function setupIncomingCallBanner() {
@@ -273,25 +278,25 @@ function listenIncomingCalls() {
   });
 }
 
-function setupCallSession(callId, remoteName) {
+function setupCallSession(callId, remoteName, roomName) {
   if (!callOverlay) return;
   callSessionId = callId;
+  callRoomName = roomName || callRoomName || callId;
   callOverlayOpen = true;
   callOverlay.classList.remove("hidden");
   callHeaderTitle.textContent = `Videollamada con ${remoteName}`;
-  callHeaderSub.textContent = isCaller ? "Llamando..." : "Aceptando llamada...";
+  callHeaderSub.textContent = isCaller ? "Llamando..." : "Uniendo llamada...";
   callStateLabel.textContent = "Conectando...";
 
   callRef = doc(db, "llamadas", callId);
-  startLocalMedia()
-    .then(async () => {
-      createPeerConnection();
-      listenCallDocument();
-    })
-    .catch((error) => {
-      console.error("Error iniciando medios para la llamada:", error);
-      callStateLabel.textContent = "No se pudo acceder a la cámara o al micrófono.";
-    });
+  document.querySelector(".callGrid")?.classList.add("hidden");
+  const jitsiContainer = document.getElementById("jitsiContainer");
+  if (jitsiContainer) {
+    jitsiContainer.style.display = "block";
+  }
+
+  createJitsiMeeting(callRoomName);
+  listenCallDocument();
 }
 
 async function startLocalMedia() {
@@ -302,72 +307,50 @@ async function startLocalMedia() {
 }
 
 function createPeerConnection() {
-  if (callPeer || !callStream) return;
-  const SimplePeer = window.SimplePeer;
-  if (!SimplePeer) {
-    console.error("SimplePeer no está disponible. Verifica el script externo.");
-    callStateLabel.textContent = "No se pudo iniciar la llamada.";
+  // El flujo de WebRTC nativo ya no se usa: ahora la videollamada se hace con Jitsi embebido.
+  return;
+}
+
+function createJitsiMeeting(roomName) {
+  if (!window.JitsiMeetExternalAPI) {
+    console.error("Jitsi External API no está disponible.");
+    callStateLabel.textContent = "No se pudo iniciar la videollamada.";
     return;
   }
 
-  callPeer = new SimplePeer({
-    initiator: isCaller,
-    trickle: true,
-    stream: callStream,
-    config: {
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" },
-        {
-          urls: [
-            "turn:relay.backups.cz:80",
-            "turn:relay.backups.cz:443"
-          ],
-          username: "homeo",
-          credential: "homeo"
-        }
+  const jitsiContainer = document.getElementById("jitsiContainer");
+  if (!jitsiContainer) return;
+
+  jitsiContainer.innerHTML = "";
+
+  const domain = "meet.jit.si";
+  const options = {
+    roomName,
+    parentNode: jitsiContainer,
+    width: "100%",
+    height: "100%",
+    configOverwrite: {
+      startWithAudioMuted: false,
+      startWithVideoMuted: false
+    },
+    interfaceConfigOverwrite: {
+      TOOLBAR_BUTTONS: [
+        "microphone", "camera", "hangup", "fullscreen", "chat", "tileview"
       ]
     }
-  });
+  };
 
-  callPeer.on("signal", async (signalData) => {
-    if (!callRef) return;
-    try {
-      await setDoc(callRef, {
-        signals: arrayUnion({
-          from: me.uid,
-          signal: signalData,
-          createdAt: serverTimestamp()
-        })
-      }, { merge: true });
-    } catch (error) {
-      console.error("Error guardando señal WebRTC:", error);
-    }
-  });
+  callJitsiApi = new window.JitsiMeetExternalAPI(domain, options);
 
-  callPeer.on("stream", (remoteStream) => {
-    if (remoteStream) {
-      callRemoteVideo.srcObject = remoteStream;
-      callRemoteVideo.play().catch(() => {});
-      callStateLabel.textContent = "Conectado";
-      callHeaderSub.textContent = "Videollamada activa";
-    }
-  });
-
-  callPeer.on("connect", () => {
+  callJitsiApi.addEventListener("videoConferenceJoined", () => {
     callStateLabel.textContent = "Conectado";
     callHeaderSub.textContent = "Videollamada activa";
   });
 
-  callPeer.on("close", () => {
-    callStateLabel.textContent = "Llamada finalizada.";
-    closeOverlay();
-    cleanupCallSession();
-  });
-
-  callPeer.on("error", (err) => {
-    console.error("Error en SimplePeer:", err);
-    callStateLabel.textContent = "Error en la llamada.";
+  callJitsiApi.addEventListener("readyToClose", () => {
+    endCall().catch((error) => {
+      console.error("Error al terminar la llamada:", error);
+    });
   });
 }
 
@@ -391,23 +374,8 @@ function listenCallDocument() {
       return;
     }
 
-    const signals = Array.isArray(data.signals) ? data.signals : [];
-    for (const signalItem of signals) {
-      if (!signalItem || signalItem.from === me.uid) continue;
-      const signalKey = JSON.stringify(signalItem.signal);
-      if (receivedSignals.has(signalKey)) continue;
-      receivedSignals.add(signalKey);
-      if (callPeer) {
-        try {
-          callPeer.signal(signalItem.signal);
-        } catch (error) {
-          console.error("Error al procesar señal remota:", error);
-        }
-      }
-    }
-
     if (!isCaller && data.estado === "activa") {
-      callStateLabel.textContent = "Aceptando llamada...";
+      callStateLabel.textContent = "Uniendo llamada...";
     }
 
     if (isCaller && data.estado === "activa") {
@@ -417,6 +385,13 @@ function listenCallDocument() {
 }
 
 async function endCall() {
+  if (callJitsiApi) {
+    try {
+      callJitsiApi.executeCommand("hangup");
+    } catch (error) {
+      console.error("Error al colgar Jitsi:", error);
+    }
+  }
   if (callRef) {
     await setDoc(callRef, {
       estado: "finalizada",
@@ -441,17 +416,28 @@ function closeOverlay() {
 function cleanupCallSession() {
   if (callDocUnsubscribe) callDocUnsubscribe();
   callDocUnsubscribe = null;
-  receivedSignals.clear();
-  if (callPeer) {
-    callPeer.destroy();
-    callPeer = null;
+  if (callJitsiApi) {
+    try {
+      callJitsiApi.dispose();
+    } catch (error) {
+      console.error("Error al limpiar Jitsi:", error);
+    }
+    callJitsiApi = null;
   }
+  const jitsiContainer = document.getElementById("jitsiContainer");
+  if (jitsiContainer) {
+    jitsiContainer.innerHTML = "";
+  }
+  document.querySelector(".callGrid")?.classList.remove("hidden");
   if (callStream) {
     callStream.getTracks().forEach((track) => track.stop());
     callStream = null;
   }
   callSessionId = null;
   callRef = null;
+  callRoomName = null;
+  isAudioMuted = false;
+  isVideoMuted = false;
 }
 
 function showIncomingCall(callId, callData) {
@@ -485,7 +471,8 @@ function showIncomingCall(callId, callData) {
       hideIncomingCall();
       callSessionId = callId;
       isCaller = false;
-      setupCallSession(callId, callData.callerName || "Usuario");
+      callRoomName = callData.roomName || callId;
+      setupCallSession(callId, callData.callerName || "Usuario", callRoomName);
     };
   }
 
@@ -508,6 +495,12 @@ function hideIncomingCall() {
 }
 
 toggleCallMic?.addEventListener("click", () => {
+  if (callJitsiApi) {
+    callJitsiApi.executeCommand("toggleAudio");
+    isAudioMuted = !isAudioMuted;
+    toggleCallMic.textContent = isAudioMuted ? "Micrófono off" : "Micrófono";
+    return;
+  }
   if (!callStream) return;
   const audioTrack = callStream.getAudioTracks()[0];
   if (!audioTrack) return;
@@ -516,6 +509,12 @@ toggleCallMic?.addEventListener("click", () => {
 });
 
 toggleCallCamera?.addEventListener("click", () => {
+  if (callJitsiApi) {
+    callJitsiApi.executeCommand("toggleVideo");
+    isVideoMuted = !isVideoMuted;
+    toggleCallCamera.textContent = isVideoMuted ? "Cámara off" : "Cámara";
+    return;
+  }
   if (!callStream) return;
   const videoTrack = callStream.getVideoTracks()[0];
   if (!videoTrack) return;
