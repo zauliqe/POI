@@ -288,19 +288,41 @@ async function createCallRequest(calleeUid) {
   const callSnap = await getDoc(callRef);
   const previous = callSnap.exists() ? callSnap.data() : null;
   
-  // Si hay llamada antigua (más de 10 minutos), limpiarla
-  if (previous && (previous.estado === "invitando" || previous.estado === "activa")) {
-    const createdTime = previous.createdAt?.toMillis?.() || 0;
-    const now = Date.now();
-    if (now - createdTime > 10 * 60 * 1000) {
-      addDebugLog(`🧹 Limpiando llamada antigua y creando nueva...`);
-      await setDoc(callRef, { estado: "finalizada" }, { merge: true });
-    } else {
-      alert("Ya hay una llamada en curso en esta conversación.");
-      return;
+  addDebugLog(`🔍 Verificando llamada anterior...`);
+  
+  // Si hay una llamada anterior
+  if (previous) {
+    addDebugLog(`📋 Llamada anterior encontrada: estado=${previous.estado}`);
+    
+    // Si ya está finalizada, permitir nueva llamada
+    if (previous.estado === "finalizada") {
+      addDebugLog(`✅ Llamada anterior finalizada, creando nueva...`);
+    }
+    // Si está en progreso (invitando o activa) y es reciente, rechazar
+    else if (previous.estado === "invitando" || previous.estado === "activa") {
+      const createdTime = previous.createdAt?.toMillis?.() || 0;
+      const now = Date.now();
+      const age = now - createdTime;
+      
+      if (age < 10 * 60 * 1000) {
+        // Menos de 10 minutos - rechazar
+        addDebugLog(`⏳ Llamada en progreso (${Math.floor(age / 1000)}s), rechazando...`);
+        alert("Ya hay una llamada en curso en esta conversación.");
+        return;
+      } else {
+        // Más de 10 minutos - limpiar
+        addDebugLog(`🧹 Llamada antigua (${Math.floor(age / 1000)}s), limpiando...`);
+        await setDoc(callRef, { estado: "finalizada", limpiadaAuto: true }, { merge: true });
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+    // Si fue rechazada, permitir nueva llamada
+    else if (previous.estado === "rechazada") {
+      addDebugLog(`✅ Llamada anterior rechazada, creando nueva...`);
     }
   }
 
+  addDebugLog(`🚀 Creando nueva solicitud de llamada...`);
   await setDoc(callRef, {
     conversationId: callId,
     caller: me.uid,
@@ -309,7 +331,8 @@ async function createCallRequest(calleeUid) {
     calleeName: activeConversation.nombres?.[calleeUid] || "Usuario",
     estado: "invitando",
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
+    signals: []
   }, { merge: true });
 
   callSessionId = callId;
@@ -493,19 +516,24 @@ function listenCallDocument() {
     const data = snapshot.data();
     addDebugLog(`📄 Estado llamada: ${data.estado}, signals: ${data.signals?.length || 0}, peer: ${callPeer ? "✅" : "❌"}`);
 
-    if (data.estado === "rechazada") {
-      addDebugLog(`🚫 Llamada rechazada`);
+    // Solo procesa cambios de estado si NO somos nosotros los que lo causamos
+    if (data.estado === "rechazada" && data.rechazadoPor !== me.uid) {
+      addDebugLog(`🚫 Llamada rechazada por el otro usuario`);
       callStateLabel.textContent = "La llamada fue rechazada.";
-      hideCallOverlay();
-      cleanupCallSession();
+      setTimeout(() => {
+        closeOverlay();
+        cleanupCallSession();
+      }, 1000);
       return;
     }
 
-    if (data.estado === "finalizada") {
-      addDebugLog(`🏁 Llamada finalizada`);
+    if (data.estado === "finalizada" && data.finalizadaPor !== me.uid) {
+      addDebugLog(`🏁 Llamada finalizada por el otro usuario`);
       callStateLabel.textContent = "La llamada terminó.";
-      hideCallOverlay();
-      cleanupCallSession();
+      setTimeout(() => {
+        closeOverlay();
+        cleanupCallSession();
+      }, 1000);
       return;
     }
 
@@ -554,18 +582,25 @@ function listenCallDocument() {
 
 async function endCall() {
   addDebugLog(`📞 Colgando llamada...`);
+  callOverlayOpen = false;
+  
   if (callRef) {
     try {
       await setDoc(callRef, {
         estado: "finalizada",
         finalizadaPor: me.uid,
+        finalizadoEn: serverTimestamp(),
         updatedAt: serverTimestamp()
       }, { merge: true });
       addDebugLog(`✅ Llamada marcada como finalizada en Firestore`);
+      
+      // Esperar un poco antes de limpiar para que el cambio se replique
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
       addDebugLog(`⚠️ Error marcando llamada como finalizada: ${error.message}`);
     }
   }
+  
   closeOverlay();
   cleanupCallSession();
 }
