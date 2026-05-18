@@ -77,7 +77,7 @@ let isCaller = false;
 let callOverlayOpen = false;
 let receivedSignals = new Set();
 let peerSignalReady = false; // Indica si SimplePeer ha emitido su propio signal (offer)
-let pendingSignals = []; // Cola de signals a procesar cuando peer esté listo
+let pendingSignals = []; // Cola de signals a procesar cuando peer est listo
 
 callLink.addEventListener("click", handleCallClick);
 
@@ -96,16 +96,28 @@ requireAuth(async (user, userProfile) => {
     showEmpty("Selecciona un contacto o grupo para empezar.");
   }
 
-  // Auto-colgar si salgo de la página o pierdo visibilidad
-  window.addEventListener("beforeunload", () => {
+  // Auto-colgar si salgo de la pgina o pierdo visibilidad
+  window.addEventListener("beforeunload", async () => {
+    // Cleanup si cierras la pestaña durante una llamada
     if (callOverlayOpen && callRef) {
-      endCall().catch(() => {});
+      try {
+        await setDoc(callRef, {
+          estado: "finalizada",
+          finalizadaPor: me.uid,
+          razon: "tab_closed",
+          signals: [],
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        console.error("Error limpiando llamada al cerrar:", error);
+      }
+      cleanupCallSession();
     }
   });
 
   document.addEventListener("visibilitychange", () => {
     if (document.hidden && callOverlayOpen && callRef) {
-      addDebugLog("🔌 Página oculta, colgando automáticamente...");
+      addDebugLog("[|] Pgina oculta, colgando automticamente...");
       endCall().catch(() => {});
     }
   });
@@ -126,12 +138,12 @@ async function cleanupOldCalls() {
       const callData = doc.data();
       const createdTime = callData.createdAt?.toMillis?.() || 0;
       if (now - createdTime > CALL_TIMEOUT) {
-        addDebugLog(`🧹 Limpiando llamada antigua: ${doc.id}`);
+        addDebugLog(`[CLEAN] Limpiando llamada antigua: ${doc.id}`);
         await setDoc(doc.ref, { estado: "finalizada", limpiadoAutomaticamente: true }, { merge: true });
       }
     });
   } catch (error) {
-    addDebugLog(`⚠️ No se pudo limpiar llamadas antiguas: ${error.message}`);
+    addDebugLog(` No se pudo limpiar llamadas antiguas: ${error.message}`);
   }
 }
 
@@ -155,7 +167,7 @@ function bindUsers() {
     users.forEach((user) => contacts.appendChild(contactItem(user)));
 
     if (!contacts.children.length) {
-      contacts.innerHTML = `<div class="mutedBlock">Cuando alguien se registre, aparecerá aquí para abrir chat individual.</div>`;
+      contacts.innerHTML = `<div class="mutedBlock">Cuando alguien se registre, aparecer aqu para abrir chat individual.</div>`;
     }
   }, (error) => {
     console.error("Error al cargar usuarios:", error);
@@ -172,7 +184,7 @@ function bindGroups() {
     });
 
     if (!groups.children.length) {
-      groups.innerHTML = `<a class="item" href="crear-grupo.html"><div class="avatar">+</div><div><div class="name">Crear grupo</div><div class="meta">Todavía no tienes grupos</div></div></a>`;
+      groups.innerHTML = `<a class="item" href="crear-grupo.html"><div class="avatar">+</div><div><div class="name">Crear grupo</div><div class="meta">Todava no tienes grupos</div></div></a>`;
     }
   }, (error) => {
     console.error("Error al cargar grupos:", error);
@@ -190,7 +202,7 @@ function contactItem(user) {
     <div class="avatar withStatus">${initials(user.nombre || user.usuario)}<span class="statusDot ${online ? "online" : ""}"></span></div>
     <div class="itemText">
       <div class="name">${escapeHtml(user.nombre || user.usuario || "Usuario")}</div>
-      <div class="meta">${online ? "En línea" : "Desconectado"} · @${escapeHtml(user.usuario || "usuario")}</div>
+      <div class="meta">${online ? "En lnea" : "Desconectado"}  @${escapeHtml(user.usuario || "usuario")}</div>
     </div>
   `;
   item.addEventListener("click", async (event) => {
@@ -210,7 +222,7 @@ function groupItem(group) {
     <div class="avatar">${initials(group.nombre || "Grupo")}</div>
     <div class="itemText">
       <div class="name">${escapeHtml(group.nombre || "Grupo")}</div>
-      <div class="meta">${group.miembros?.length || 0} miembros · ${escapeHtml(group.tipo || "Privado")}</div>
+      <div class="meta">${group.miembros?.length || 0} miembros  ${escapeHtml(group.tipo || "Privado")}</div>
     </div>
   `;
   item.addEventListener("click", async (event) => {
@@ -243,7 +255,7 @@ async function openConversation(id) {
 
   const snap = await getDoc(doc(db, "conversaciones", id));
   if (!snap.exists()) {
-    showEmpty("La conversación no existe todavía. Selecciona un usuario o crea un grupo.");
+    showEmpty("La conversacin no existe todava. Selecciona un usuario o crea un grupo.");
     return;
   }
 
@@ -281,20 +293,20 @@ function handleCallClick(event) {
   }
   createCallRequest(otherUid).catch((error) => {
     console.error("Error al iniciar llamada:", error);
-    alert("No se pudo iniciar la videollamada. Intenta de nuevo más tarde.");
+    alert("No se pudo iniciar la videollamada. Intenta de nuevo ms tarde.");
   });
 }
 
 async function createCallRequest(calleeUid) {
-  // Generar ID único para cada llamada (no reutilizar el mismo)
+  // Generar ID nico para cada llamada (no reutilizar el mismo)
   const uniqueCallId = `${activeConversation.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   callRef = doc(db, "llamadas", uniqueCallId);
   
-  addDebugLog(`🆕 Creando nueva llamada con ID único: ${uniqueCallId}`);
+  addDebugLog(` Creando nueva llamada con ID nico: ${uniqueCallId}`);
 
   // Resetear signals para nueva llamada
   receivedSignals.clear();
-  addDebugLog(`🧹 Limpiando signals anteriores...`);
+  addDebugLog(`[CLEAN] Limpiando signals anteriores...`);
 
   await setDoc(callRef, {
     conversationId: activeConversation.id,
@@ -317,17 +329,17 @@ async function createCallRequest(calleeUid) {
 function setupIncomingCallBanner() {
   incomingCallBanner.id = "incomingCall";
   incomingCallBanner.className = "incomingCall hidden";
-  addDebugLog(`🔔 Configurando banner de llamada entrante...`);
+  addDebugLog(` Configurando banner de llamada entrante...`);
   if (headerElement?.parentNode) {
     headerElement.parentNode.insertBefore(incomingCallBanner, headerElement.nextSibling);
-    addDebugLog(`✅ Banner insertado en el DOM`);
+    addDebugLog(`[OK] Banner insertado en el DOM`);
   } else {
-    addDebugLog(`❌ headerElement o su parentNode no existen`);
+    addDebugLog(`[X] headerElement o su parentNode no existen`);
   }
 }
 
 function listenIncomingCalls() {
-  addDebugLog(`🔊 Iniciando escucha de llamadas entrantes para ${me.uid}...`);
+  addDebugLog(` Iniciando escucha de llamadas entrantes para ${me.uid}...`);
   const incomingQuery = query(
     collection(db, "llamadas"),
     where("callee", "==", me.uid),
@@ -335,19 +347,19 @@ function listenIncomingCalls() {
   );
 
   onSnapshot(incomingQuery, (snapshot) => {
-    addDebugLog(`📥 Snapshot de llamadas entrantes: ${snapshot.docs.length} documento(s)`);
+    addDebugLog(`[<] Snapshot de llamadas entrantes: ${snapshot.docs.length} documento(s)`);
     if (snapshot.empty) {
-      addDebugLog(`⚠️ Sin llamadas entrantes en este momento`);
+      addDebugLog(` Sin llamadas entrantes en este momento`);
       hideIncomingCall();
       return;
     }
 
     const callDoc = snapshot.docs[0];
     const callData = callDoc.data();
-    addDebugLog(`🔔 LLAMADA ENTRANTE DETECTADA: de ${callData.callerName}, estado=${callData.estado}`);
+    addDebugLog(` LLAMADA ENTRANTE DETECTADA: de ${callData.callerName}, estado=${callData.estado}`);
     showIncomingCall(callDoc.id, callData);
   }, (error) => {
-    addDebugLog(`❌ Error escuchando llamadas entrantes: ${error.message}`);
+    addDebugLog(`[X] Error escuchando llamadas entrantes: ${error.message}`);
     console.error("Error al escuchar llamadas entrantes:", error);
   });
 }
@@ -368,7 +380,7 @@ function setupCallSession(callId, remoteName) {
   callHeaderSub.textContent = isCaller ? "Llamando..." : "Aceptando llamada...";
   callStateLabel.textContent = "Conectando...";
   debugPanel.style.display = "block";
-  addDebugLog(`🚀 Iniciando sesión de llamada. Caller: ${isCaller}`);
+  addDebugLog(` Iniciando sesin de llamada. Caller: ${isCaller}`);
 
   callRef = doc(db, "llamadas", callId);
   startLocalMedia()
@@ -376,46 +388,105 @@ function setupCallSession(callId, remoteName) {
       callManager.setStreamReady(callSessionId, true);
       createPeerConnection();
       listenCallDocument();
-      addDebugLog(`✅ Sesión de llamada iniciada`);
+      addDebugLog(`[OK] Sesin de llamada iniciada`);
     })
     .catch((error) => {
-      addDebugLog(`❌ Error iniciando medios para la llamada: ${error.message}`);
+      addDebugLog(`[X] Error iniciando medios para la llamada: ${error.message}`);
       callManager.updateCallStatus(callSessionId, "failed");
-      callStateLabel.textContent = "No se pudo acceder a la cámara o al micrófono.";
+      callStateLabel.textContent = "No se pudo acceder a la cmara o al micrfono.";
     });
 }
 
 async function startLocalMedia() {
   if (callStream) {
-    addDebugLog(`⚠️ Stream local ya existe`);
+    addDebugLog(` Stream local ya existe`);
     return;
   }
   try {
-    addDebugLog(`🎥 Solicitando getUserMedia...`);
-    callStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    addDebugLog(`✅ Stream obtenido: ${callStream?.getTracks().length} tracks`);
+    addDebugLog(`[CAM] Solicitando getUserMedia...`);
+    
+    // TIMEOUT: 10 segundos para obtener acceso a cámara/micrófono
+    const mediaPromise = navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout: Permiso de cámara/micrófono denegado o sin respuesta (10s)')), 10000)
+    );
+    
+    callStream = await Promise.race([mediaPromise, timeoutPromise]);
+    addDebugLog(`[OK] Stream obtenido: ${callStream?.getTracks().length} tracks`);
     callLocalVideo.srcObject = callStream;
     await callLocalVideo.play().catch(() => {});
-    addDebugLog(`✅ Video local mostrado`);
+    addDebugLog(`[OK] Video local mostrado`);
   } catch (error) {
-    addDebugLog(`❌ Error getUserMedia: ${error.message}`);
+    addDebugLog(`[X] Error getUserMedia: ${error.message}`);
+    
+    // Mensajes específicos según el error
+    if (error.name === "NotAllowedError" || error.message.includes("Permission denied")) {
+      callStateLabel.textContent = "Permiso denegado. Habilita cámara y micrófono en la configuración del navegador.";
+    } else if (error.name === "NotFoundError") {
+      callStateLabel.textContent = "No hay cámara o micrófono disponible en este dispositivo.";
+    } else if (error.name === "NotReadableError") {
+      callStateLabel.textContent = "La cámara/micrófono está siendo usada por otra aplicación.";
+    } else if (error.message.includes("Timeout")) {
+      callStateLabel.textContent = "Timeout: No respondiste a la solicitud de permisos en 10 segundos.";
+    } else {
+      callStateLabel.textContent = `Error: ${error.message}`;
+    }
+    
+    callManager.updateCallStatus(callSessionId, "failed");
     throw error;
   }
 }
 
+let callConnectionTimeout = null; // Variable global para timeout de conexión
+let signalRetryMap = new Map(); // Mapa para rastrear reintentos de signals
+
+// Función helper: Procesar signal con reintentos automáticos
+async function applySignalWithRetry(signal, maxRetries = 3, initialDelay = 100) {
+  let retryCount = 0;
+  let delay = initialDelay;
+  
+  while (retryCount < maxRetries) {
+    try {
+      if (!callPeer || !callPeer._pc) {
+        addDebugLog(`[X] Peer no disponible, abandando reintentos`);
+        return false;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 20));
+      callPeer.signal(signal);
+      addDebugLog(`[OK] Signal ${signal.type} aplicado exitosamente`);
+      return true;
+    } catch (error) {
+      retryCount++;
+      if (retryCount < maxRetries && error.message.includes("wrong state")) {
+        addDebugLog(`[RETRY] Reintento ${retryCount}/${maxRetries} para ${signal.type} (delay: ${delay}ms)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay = delay * 2; // Backoff exponencial
+      } else if (retryCount >= maxRetries) {
+        addDebugLog(`[X] Signal ${signal.type} falló tras ${maxRetries} reintentos: ${error.message}`);
+        return false;
+      } else {
+        addDebugLog(`[X] Error no recuperable: ${error.message}`);
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
 function createPeerConnection() {
   if (callPeer || !callStream) {
-    addDebugLog(`❌ createPeerConnection: peer ya existe o sin stream`);
+    addDebugLog(`[X] createPeerConnection: peer ya existe o sin stream`);
     return;
   }
   const SimplePeer = window.SimplePeer;
   if (!SimplePeer) {
-    addDebugLog(`❌ SimplePeer NO DISPONIBLE en window`);
+    addDebugLog(`[X] SimplePeer NO DISPONIBLE en window`);
     callStateLabel.textContent = "SimplePeer no cargó.";
     return;
   }
 
-  addDebugLog(`✅ SimplePeer disponible. Initiator: ${isCaller}`);
+  addDebugLog(`[OK] SimplePeer disponible. Initiator: ${isCaller}`);
   
   callPeer = new SimplePeer({
     initiator: isCaller,
@@ -434,80 +505,44 @@ function createPeerConnection() {
     }
   });
 
-  addDebugLog(`📡 SimplePeer creado. Stream local: ${callStream?.getTracks().length} tracks`);
+  addDebugLog(`[NET] SimplePeer creado. Stream local: ${callStream?.getTracks().length} tracks`);
   
-  // Resetear flag de readiness
+  // TIMEOUT: 30 segundos para establecer conexión
+  callConnectionTimeout = setTimeout(() => {
+    if (callPeer && callPeer._pc && callPeer._pc.connectionState === "connecting") {
+      addDebugLog(`[TIMEOUT] WebRTC connection timeout (30s sin conectar)`);
+      callStateLabel.textContent = "Timeout de conexión. Intenta nuevamente.";
+      callManager.updateCallStatus(callSessionId, "failed");
+      if (callPeer) {
+        try { callPeer.destroy(); } catch (e) {}
+        callPeer = null;
+      }
+    }
+  }, 30000);
+  
   peerSignalReady = false;
   pendingSignals = [];
   
-  // Marcar que el peer está listo
   callManager.setPeerReady(callSessionId, true);
   callManager.updateCallStatus(callSessionId, "connecting");
 
-  // SOLUCIÓN ROBUSTA: Esperar confirmación real de que RTCPeerConnection está listo
-  // No confiar en event "signal" - esperar a que signalingState cambie
-  function waitForPeerReady() {
-    return new Promise((resolve) => {
-      if (!callPeer || !callPeer._pc) {
-        resolve();
-        return;
-      }
-      
-      const pc = callPeer._pc;
-      let resolved = false;
-      
-      // Opción 1: Escuchar cambio en signalingState
-      const handleStateChange = () => {
-        if (resolved) return;
-        const state = pc.signalingState;
-        addDebugLog(`📊 signalingState cambió a: ${state}`);
-        
-        if (state === "have-local-offer") {
-          resolved = true;
-          pc.removeEventListener("signalingstatechange", handleStateChange);
-          resolve();
-        }
-      };
-      
-      pc.addEventListener("signalingstatechange", handleStateChange);
-      
-      // Opción 2: Timeout de respaldo (máximo 1 segundo de espera)
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          pc.removeEventListener("signalingstatechange", handleStateChange);
-          addDebugLog(`🎯 Timeout: forzando peer como ready (${pc.signalingState})`);
-          resolve();
-        }
-      }, 1000);
-    });
-  }
-  
-  // Esperar a que peer esté listo ANTES de procesar cualquier signal
-  waitForPeerReady().then(() => {
-    peerSignalReady = true;
-    addDebugLog(`🎯 ¡Peer LISTO para procesar signals!`);
+  callPeer.on("signal", async (signalData) => {
+    if (!callRef) return;
     
-    // Procesar signals encolados
-    if (pendingSignals.length > 0 && callPeer && callPeer._pc) {
-      addDebugLog(`📦 Procesando ${pendingSignals.length} signals encolados inmediatamente...`);
-      const pending = pendingSignals.splice(0);
-      for (const sig of pending) {
-        if (!callPeer || !callPeer._pc) break;
-        try {
-          callPeer.signal(sig);
-          addDebugLog(`  ✅ Signal encolado aplicado: ${sig.type}`);
-        } catch (error) {
-          addDebugLog(`  ❌ Error: ${error.message}`);
-          pendingSignals.push(sig); // Reenencolar si falla
+    if (!peerSignalReady) {
+      peerSignalReady = true;
+      addDebugLog(`PEER LISTO`);
+      
+      if (pendingSignals.length > 0 && callPeer && callPeer._pc) {
+        const pending = pendingSignals.splice(0);
+        for (const sig of pending) {
+          try {
+            await new Promise(r => setTimeout(r, 15));
+            callPeer.signal(sig);
+          } catch (e) { }
         }
       }
     }
-  });
-
-  callPeer.on("signal", async (signalData) => {
-    if (!callRef) return;
-    addDebugLog(`📤 Signal emitido localmente: ${signalData.type}`);
     
     try {
       await setDoc(callRef, {
@@ -517,46 +552,48 @@ function createPeerConnection() {
           timestamp: new Date().toISOString()
         })
       }, { merge: true });
-      addDebugLog(`✅ Signal guardado en Firestore`);
     } catch (error) {
-      addDebugLog(`❌ Error guardando signal: ${error.message}`);
+      addDebugLog(`ERROR: ${error.message}`);
     }
   });
-
+  
   callPeer.on("stream", (remoteStream) => {
-    addDebugLog(`🎥 Stream remoto recibido: ${remoteStream?.getTracks().length} tracks`);
+    addDebugLog(`[CAM] Stream remoto recibido: ${remoteStream?.getTracks().length} tracks`);
     if (remoteStream) {
       callRemoteVideo.srcObject = remoteStream;
       callRemoteVideo.play().catch(() => {});
       callStateLabel.textContent = "Conectado";
       callHeaderSub.textContent = "Videollamada activa";
-      addDebugLog(`✅ Video remoto mostrado`);
+      addDebugLog(`[OK] Video remoto mostrado`);
     }
   });
 
   callPeer.on("connect", () => {
-    addDebugLog(`✅ Peer conectado exitosamente`);
+    // Limpiar timeout de conexión cuando se establece
+    if (callConnectionTimeout) clearTimeout(callConnectionTimeout);
+    
+    addDebugLog(`[OK] Peer conectado exitosamente`);
     callManager.updateCallStatus(callSessionId, "connected");
     callStateLabel.textContent = "Conectado";
     callHeaderSub.textContent = "Videollamada activa";
   });
 
   callPeer.on("data", (data) => {
-    addDebugLog(`📨 Datos recibidos: ${data}`);
+    addDebugLog(`[MSG] Datos recibidos: ${data}`);
   });
 
   callPeer.on("close", () => {
-    addDebugLog(`🔌 Peer desconectado`);
+    addDebugLog(`[|] Peer desconectado`);
     callManager.updateCallStatus(callSessionId, "failed");
     callStateLabel.textContent = "Desconectado - intenta reconectar";
     callPeer = null;
   });
 
   callPeer.on("error", (err) => {
-    addDebugLog(`❌ Error SimplePeer: ${err.message}`);
+    addDebugLog(`[X] Error SimplePeer: ${err.message}`);
     callManager.updateCallStatus(callSessionId, "failed");
     callStateLabel.textContent = "Error: " + err.message;
-    // Destruir peer si hay error crítico
+    // Destruir peer si hay error crtico
     if (callPeer) {
       try {
         callPeer.destroy();
@@ -568,176 +605,91 @@ function createPeerConnection() {
 
 function listenCallDocument() {
   if (callDocUnsubscribe) callDocUnsubscribe();
-  addDebugLog(`👂 Escuchando documento de llamada`);
   
   callDocUnsubscribe = onSnapshot(callRef, async (snapshot) => {
-    if (!snapshot.exists()) {
-      addDebugLog(`⚠️ Documento de llamada no existe`);
-      return;
-    }
-    const data = snapshot.data();
-    addDebugLog(`📄 Estado llamada: ${data.estado}, signals: ${data.signals?.length || 0}, peer: ${callPeer ? "✅" : "❌"}`);
-
-    // Verificar salud de la llamada
-    const callHealth = callManager.isCallHealthy(callSessionId);
-    if (!callHealth && data.estado !== "finalizada") {
-      addDebugLog(`⚠️ Llamada no en estado saludable, ignorando signals`);
-      return;
-    }
-
-    if (data.estado === "rechazada") {
-      addDebugLog(`🚫 Llamada rechazada`);
-      receivedSignals.clear();
-      callManager.endCall(callSessionId);
-      addDebugLog(`🧹 Limpiando signals...`);
-      callStateLabel.textContent = "La llamada fue rechazada.";
-      hideCallOverlay();
-      cleanupCallSession();
-      return;
-    }
-
-    if (data.estado === "finalizada") {
-      addDebugLog(`🏁 Llamada finalizada`);
-      receivedSignals.clear();
-      callManager.endCall(callSessionId);
-      addDebugLog(`🧹 Limpiando signals...`);
-      callStateLabel.textContent = "La llamada terminó.";
-      hideCallOverlay();
-      cleanupCallSession();
-      return;
-    }
-
-    // Procesar signals solo si callPeer existe Y está en buen estado
-    const signals = Array.isArray(data.signals) ? data.signals : [];
-    let newSignals = 0;
+    if (!snapshot.exists() || !callPeer || !callPeer._pc) return;
     
-    if (callPeer && signals.length > 0 && callHealth) {
-      for (const signalItem of signals) {
-        if (!signalItem || signalItem.from === me.uid) continue;
-        const signalKey = JSON.stringify(signalItem.signal);
-        if (receivedSignals.has(signalKey)) continue;
-        
-        // Validar que el peer sigue existiendo y no está destruido
-        if (!callPeer || !callPeer._pc) {
-          addDebugLog(`⚠️ Peer fue destruido, ignorando signal ${signalItem.signal.type}`);
-          break;
-        }
-
-        receivedSignals.add(signalKey);
-        
-        // CRÍTICO: Validar que SimplePeer haya estado listo Y verificar signalingState
-        if (!peerSignalReady) {
-          addDebugLog(`⏳ SimplePeer aún no listo, encolando signal ${signalItem.signal.type}`);
-          if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(signalItem.signal))) {
-            pendingSignals.push(signalItem.signal);
-          }
-          continue;
-        }
-        
-        // IMPORTANTE: Validar que el signalingState permite este signal
-        // No procesar ANSWER si estamos en "stable" (sin oferta local)
-        const signalingState = callPeer._pc?.signalingState || "unknown";
-        if (signalItem.signal.type === "answer" && signalingState === "stable") {
-          addDebugLog(`⚠️ Ignorando ANSWER en estado 'stable' (no hay offer local yet). State: ${signalingState}`);
-          receivedSignals.delete(signalKey); // Permitir reintentar
-          pendingSignals.push(signalItem.signal);
-          continue;
-        }
-        
-        newSignals++;
-        addDebugLog(`📥 Signal remoto (${signalItem.signal.type}) en estado '${signalingState}'`);
-        try {
-          // Pequeño delay para permitir que WebRTC procese correctamente
-          await new Promise(resolve => setTimeout(resolve, 20));
-          callPeer.signal(signalItem.signal);
-          callManager.recordSignalApplied(callSessionId, signalItem.signal.type);
-          addDebugLog(`✅ Signal aplicado a peer`);
-        } catch (error) {
-          addDebugLog(`❌ Error aplicando signal: ${error.message}`);
-          
-          // Si el error es sobre estado, marca peer como fallido
-          if (error.message.includes("wrong state") || error.message.includes("destroyed")) {
-            addDebugLog(`🔴 ERROR CRÍTICO - Peer en estado inválido. Deteniendo procesamiento.`);
-            callManager.updateCallStatus(callSessionId, "failed");
-            break;
-          }
-        }
-      }
-      if (newSignals > 0) {
-        addDebugLog(`📦 ${newSignals} signals nuevos procesados`);
+    const data = snapshot.data();
+    
+    // Estados terminales
+    if (data.estado === "rechazada" || data.estado === "finalizada") {
+      receivedSignals.clear();
+      callManager.endCall(callSessionId);
+      callStateLabel.textContent = data.estado === "rechazada" ? "Rechazada" : "Finalizada";
+      hideCallOverlay();
+      cleanupCallSession();
+      return;
+    }
+    
+    // Procesar signals
+    const signals = Array.isArray(data.signals) ? data.signals : [];
+    const connState = callPeer._pc.connectionState;
+    const sigState = callPeer._pc.signalingState;
+    
+    for (const item of signals) {
+      if (!item || item.from === me.uid) continue;
+      
+      const key = JSON.stringify(item.signal);
+      if (receivedSignals.has(key)) continue;
+      receivedSignals.add(key);
+      
+      // Saltar offers/answers si ya conectados
+      if (connState === "connected" && (item.signal.type === "offer" || item.signal.type === "answer")) {
+        continue;
       }
       
-      // IMPORTANTE: Si peerSignalReady es ahora true pero hay signals encolados,
-      // procesarlos en el siguiente ciclo
-      if (peerSignalReady && pendingSignals.length > 0) {
-        addDebugLog(`⚠️ Reintentando ${pendingSignals.length} signals encolados...`);
-        const pending = pendingSignals.splice(0);
-        for (const sig of pending) {
-          if (!callPeer || !callPeer._pc) {
-            addDebugLog(`⚠️ Peer destruido antes de procesar signal encolado`);
-            break;
-          }
-          
-          const signalingState = callPeer._pc.signalingState;
-          if (sig.type === "answer" && signalingState === "stable") {
-            addDebugLog(`⏳ ANSWER aún no puede procesarse (estado: ${signalingState}), reencolando`);
-            pendingSignals.push(sig);
-            continue;
-          }
-          
-          try {
-            await new Promise(resolve => setTimeout(resolve, 20));
-            callPeer.signal(sig);
-            callManager.recordSignalApplied(callSessionId, sig.type);
-            addDebugLog(`✅ Signal encolado procesado (${sig.type})`);
-          } catch (error) {
-            addDebugLog(`❌ Error procesando signal encolado: ${error.message}`);
-            if (error.message.includes("wrong state")) {
-              addDebugLog(`⏳ Reencolando signal (signalingState: ${callPeer._pc?.signalingState})`);
-              pendingSignals.push(sig);
-            }
-          }
+      // Si peer no est listo, encolar
+      if (!peerSignalReady) {
+        if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(item.signal))) {
+          pendingSignals.push(item.signal);
+        }
+        continue;
+      }
+      
+      // Si es ANSWER en stable, no procesar ahora - reintentar después
+      if (item.signal.type === "answer" && sigState === "stable") {
+        addDebugLog(`[RETRY] ANSWER en estado 'stable', encolando para reintentar...`);
+        receivedSignals.delete(key);
+        if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(item.signal))) {
+          pendingSignals.push(item.signal);
+        }
+        continue;
+      }
+      
+      // Procesar signal CON REINTENTOS automáticos
+      const success = await applySignalWithRetry(item.signal, 3, 100);
+      if (success) {
+        addDebugLog(`[OK] Signal ${item.signal.type} procesado exitosamente`);
+        callManager.recordSignalApplied(callSessionId, item.signal.type);
+      } else {
+        addDebugLog(`[X] Signal ${item.signal.type} falló definitivamente`);
+        // Remover del received para poder reintentar en siguiente snapshot
+        receivedSignals.delete(key);
+        if (!pendingSignals.find(s => JSON.stringify(s) === JSON.stringify(item.signal))) {
+          pendingSignals.push(item.signal);
         }
       }
-    } else if (!callPeer && signals.length > 0) {
-      addDebugLog(`⏳ callPeer aún no existe, esperando...`);
     }
-
-    if (!isCaller && data.estado === "activa") {
-      addDebugLog(`📞 Callee: llamada activa`);
-      if (!callPeer) {
-        addDebugLog(`⏳ callPeer no listo aún para callee`);
-      }
-      callStateLabel.textContent = "Aceptando llamada...";
-    }
-
-    if (isCaller && data.estado === "activa") {
-      addDebugLog(`📞 Caller: llamada activa`);
-      callStateLabel.textContent = "Conectando...";
-    }
-  }, (error) => {
-    addDebugLog(`❌ Error escuchando documento: ${error.message}`);
-    callManager.updateCallStatus(callSessionId, "failed");
   });
 }
 
 async function endCall() {
-  addDebugLog(`📞 Colgando llamada...`);
+  addDebugLog(`[CALL] Colgando llamada...`);
   if (callRef) {
     try {
       await setDoc(callRef, {
         estado: "finalizada",
         finalizadaPor: me.uid,
-        signals: [], // ← LIMPIAR SIGNALS al finalizar
+        signals: [], //  LIMPIAR SIGNALS al finalizar
         updatedAt: serverTimestamp()
       }, { merge: true });
-      addDebugLog(`✅ Llamada marcada como finalizada en Firestore`);
+      addDebugLog(`[OK] Llamada marcada como finalizada en Firestore`);
     } catch (error) {
-      addDebugLog(`⚠️ Error marcando llamada como finalizada: ${error.message}`);
+      addDebugLog(` Error marcando llamada como finalizada: ${error.message}`);
     }
   }
   receivedSignals.clear();
-  addDebugLog(`🧹 Limpiando signals locales...`);
+  addDebugLog(`[CLEAN] Limpiando signals locales...`);
   closeOverlay();
   cleanupCallSession();
 }
@@ -753,7 +705,8 @@ function closeOverlay() {
 }
 
 function cleanupCallSession() {
-  addDebugLog(`🧹 Limpiando sesión de llamada...`);
+  addDebugLog(`[CLEAN] Limpiando sesion de llamada...`);
+  if (callConnectionTimeout) clearTimeout(callConnectionTimeout);
   if (callDocUnsubscribe) callDocUnsubscribe();
   callDocUnsubscribe = null;
   receivedSignals.clear();
@@ -762,30 +715,30 @@ function cleanupCallSession() {
   if (callPeer) {
     callPeer.destroy();
     callPeer = null;
-    addDebugLog(`✅ SimplePeer destruido`);
+    addDebugLog(`[OK] SimplePeer destruido`);
   }
   if (callStream) {
     callStream.getTracks().forEach((track) => track.stop());
     callStream = null;
-    addDebugLog(`✅ Stream local detenido`);
+    addDebugLog(`[OK] Stream local detenido`);
   }
   callSessionId = null;
   callRef = null;
-  addDebugLog(`✅ Sesión limpiada completamente`);
+  addDebugLog(`[OK] Sesion limpiada completamente`);
 }
 
 function showIncomingCall(callId, callData) {
   if (activeIncomingCallId === callId) {
-    addDebugLog(`⏭️ Llamada ${callId} ya está activa, ignorando duplicado`);
+    addDebugLog(`Llamada ${callId} ya esta activa, ignorando duplicado`);
     return;
   }
-  addDebugLog(`🎯 Mostrando notificación de llamada entrante de ${callData.callerName}`);
+  addDebugLog(`[*] Mostrando notificacion de llamada entrante de ${callData.callerName}`);
   activeIncomingCallId = callId;
 
   incomingCallBanner.innerHTML = `
     <div style="flex:1; min-width:0;">
       <strong style="display:block; color:var(--text);">Llamada entrante</strong>
-      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien")} te está llamando.</span>
+      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien")} te esta llamando.</span>
     </div>
     <div class="callActions">
       <button class="btn small primary" id="acceptCallBtn">Aceptar</button>
@@ -794,44 +747,74 @@ function showIncomingCall(callId, callData) {
   `;
 
   incomingCallBanner.classList.remove("hidden");
-  addDebugLog(`✅ Banner visible, botones disponibles`);
+  addDebugLog(`[OK] Banner visible, botones disponibles`);
 
   const acceptBtn = document.getElementById("acceptCallBtn");
   const rejectBtn = document.getElementById("rejectCallBtn");
-  addDebugLog(`🔘 Botones encontrados: Accept=${acceptBtn ? "✅" : "❌"}, Reject=${rejectBtn ? "✅" : "❌"}`);
+  addDebugLog(`Botones encontrados: Accept=${acceptBtn ? "[OK]" : "[X]"}, Reject=${rejectBtn ? "[OK]" : "[X]"}`);
+
+  // AUTO-RECHAZAR DESPUÉS DE 30 SEGUNDOS
+  const autoRejectTimeout = setTimeout(async () => {
+    if (activeIncomingCallId === callId) {
+      addDebugLog(`[TIMEOUT] No respondiste en 30 segundos, rechazando automaticamente...`);
+      receivedSignals.clear();
+      try {
+        await setDoc(doc(db, "llamadas", callId), {
+          estado: "rechazada",
+          rechazadoPor: me.uid,
+          razon: "timeout_no_respuesta",
+          signals: [],
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        addDebugLog(`[X] Error auto-rechazando: ${error.message}`);
+      }
+      hideIncomingCall();
+    }
+  }, 30000);
 
   if (acceptBtn) {
     acceptBtn.onclick = async () => {
-      addDebugLog(`✅ Llamada aceptada, actualizando estado...`);
-      // RESETEAR signals para evitar conflictos de la llamada anterior
+      clearTimeout(autoRejectTimeout); // Cancelar auto-rechazo
+      addDebugLog(`[OK] Llamada aceptada, actualizando estado...`);
       receivedSignals.clear();
-      addDebugLog(`🧹 Limpiando signals anteriores...`);
+      addDebugLog(`[CLEAN] Limpiando signals anteriores...`);
       
-      await setDoc(doc(db, "llamadas", callId), {
-        estado: "activa",
-        acceptedAt: serverTimestamp(),
-        aceptadaPor: me.uid,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      addDebugLog(`✅ Estado actualizado a 'activa', iniciando sesión...`);
-      hideIncomingCall();
-      callSessionId = callId;
-      isCaller = false;
-      setupCallSession(callId, callData.callerName || "Usuario");
+      try {
+        await setDoc(doc(db, "llamadas", callId), {
+          estado: "activa",
+          acceptedAt: serverTimestamp(),
+          aceptadaPor: me.uid,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+        addDebugLog(`[OK] Estado actualizado a 'activa', iniciando sesion...`);
+        hideIncomingCall();
+        callSessionId = callId;
+        isCaller = false;
+        setupCallSession(callId, callData.callerName || "Usuario");
+      } catch (error) {
+        addDebugLog(`[X] Error aceptando llamada: ${error.message}`);
+        callStateLabel.textContent = "Error al aceptar la llamada. Intenta nuevamente.";
+      }
     };
   }
 
   if (rejectBtn) {
     rejectBtn.onclick = async () => {
+      clearTimeout(autoRejectTimeout); // Cancelar auto-rechazo
       receivedSignals.clear();
-      addDebugLog(`🧹 Llamada rechazada, limpiando signals...`);
+      addDebugLog(`[CLEAN] Llamada rechazada, limpiando signals...`);
       
-      await setDoc(doc(db, "llamadas", callId), {
-        estado: "rechazada",
-        rechazadoPor: me.uid,
-        signals: [], // ← LIMPIAR SIGNALS al rechazar
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      try {
+        await setDoc(doc(db, "llamadas", callId), {
+          estado: "rechazada",
+          rechazadoPor: me.uid,
+          signals: [],
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (error) {
+        addDebugLog(`[X] Error rechazando: ${error.message}`);
+      }
       hideIncomingCall();
     };
   }
@@ -848,7 +831,7 @@ toggleCallMic?.addEventListener("click", () => {
   const audioTrack = callStream.getAudioTracks()[0];
   if (!audioTrack) return;
   audioTrack.enabled = !audioTrack.enabled;
-  toggleCallMic.textContent = audioTrack.enabled ? "Micrófono" : "Micrófono off";
+  toggleCallMic.textContent = audioTrack.enabled ? "Micrfono" : "Micrfono off";
 });
 
 toggleCallCamera?.addEventListener("click", () => {
@@ -856,13 +839,15 @@ toggleCallCamera?.addEventListener("click", () => {
   const videoTrack = callStream.getVideoTracks()[0];
   if (!videoTrack) return;
   videoTrack.enabled = !videoTrack.enabled;
-  toggleCallCamera.textContent = videoTrack.enabled ? "Cámara" : "Cámara off";
+  toggleCallCamera.textContent = videoTrack.enabled ? "Cmara" : "Cmara off";
 });
 
 endCallButton?.addEventListener("click", async () => {
-  await endCall().catch((error) => {
-    console.error("Error al colgar la llamada:", error);
-  });
+  if (confirm("¿Colgar la videollamada?")) {
+    await endCall().catch((error) => {
+      console.error("Error al colgar la llamada:", error);
+    });
+  }
 });
 
 closeCallOverlayButton?.addEventListener("click", () => {
@@ -874,7 +859,7 @@ function bindMessages(id) {
   stopMessages = onSnapshot(q, (snapshot) => {
     chat.innerHTML = "";
     if (snapshot.empty) {
-      chat.innerHTML = `<div class="emptyState">Aún no hay mensajes. Escribe el primero.</div>`;
+      chat.innerHTML = `<div class="emptyState">An no hay mensajes. Escribe el primero.</div>`;
       return;
     }
 
@@ -926,7 +911,7 @@ async function sendMessage() {
     input.focus();
   } catch (error) {
     console.error("Error al enviar mensaje:", error);
-    alert("No se pudo enviar el mensaje. Revisa que hayas iniciado sesión y que Firestore permita escritura.");
+    alert("No se pudo enviar el mensaje. Revisa que hayas iniciado sesin y que Firestore permita escritura.");
   } finally {
     sendButton.disabled = false;
   }
@@ -957,3 +942,6 @@ input.addEventListener("keydown", (event) => {
     sendMessage();
   }
 });
+
+
+
