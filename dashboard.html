@@ -94,8 +94,6 @@
           <button id="closeCallOverlay" class="btn small ghost">Cerrar</button>
         </div>
 
-        <div id="jitsiContainer" class="jitsiContainer" style="width:100%; min-height:420px; background:#000; display:none;"></div>
-
         <div class="callGrid">
           <div class="callBox">
             <div class="callBoxLabel">Tu cámara</div>
@@ -113,11 +111,17 @@
           <button id="endCall" class="btn danger small">Colgar</button>
           <span id="callStateLabel" class="callStateLabel">No hay llamada activa.</span>
         </div>
+
+        <div id="debugPanel" style="margin-top:16px; padding:12px; background:rgba(0,0,0,.7); border-radius:8px; font-family:'Courier New',monospace; font-size:11px; max-height:180px; overflow-y:auto; display:none; border:1px solid rgba(69,214,173,.2);">
+          <div style="color:#45d6ad; margin-bottom:8px; font-weight:bold;">📡 Debug Console</div>
+          <div id="debugLog" style="color:#aaa; white-space:pre-wrap; word-break:break-all; line-height:1.3;"></div>
+          <button id="toggleDebug" class="btn small" style="margin-top:8px; width:100%;">Mostrar Debug</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <script src="https://meet.jit.si/external_api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
   <script type="module" src="chat.js"></script>
   <script type="module">
     import { bindLogout } from "./app.js";
