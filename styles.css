@@ -317,16 +317,28 @@ a:hover{opacity:.95}
 .topbar .sub{font-size:15px; color:var(--muted)}
 .topbar .right{display:flex; align-items:center; gap:10px}
 
-.incomingCall{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  margin:14px 0 0;
-  padding:14px 16px;
-  border-radius:18px;
-  border:1px solid rgba(69,214,173,.18);
-  background:rgba(9,28,26,.85);
+
+/* Floating incoming call dialog */
+.incomingCall {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10000;
+  min-width: 320px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 28px 24px;
+  border-radius: 22px;
+  border: 1.5px solid rgba(69,214,173,.22);
+  background: linear-gradient(180deg, rgba(9,28,26,.97), rgba(6,18,17,.93));
+  box-shadow: 0 8px 40px rgba(0,0,0,.45);
+  font-size: 18px;
+  text-align: center;
 }
 
 .incomingCall.hidden{display:none !important;}
@@ -391,6 +403,11 @@ a:hover{opacity:.95}
   background:#000;
   border-radius:18px;
   object-fit:cover;
+}
+
+/* Mirror local video horizontally */
+#callLocalVideo {
+  transform: scaleX(-1);
 }
 
 .callControls{

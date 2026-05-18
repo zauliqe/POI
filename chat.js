@@ -329,12 +329,17 @@ async function createCallRequest(calleeUid) {
 function setupIncomingCallBanner() {
   incomingCallBanner.id = "incomingCall";
   incomingCallBanner.className = "incomingCall hidden";
-  addDebugLog(` Configurando banner de llamada entrante...`);
-  if (headerElement?.parentNode) {
-    headerElement.parentNode.insertBefore(incomingCallBanner, headerElement.nextSibling);
-    addDebugLog(`[OK] Banner insertado en el DOM`);
-  } else {
-    addDebugLog(`[X] headerElement o su parentNode no existen`);
+  addDebugLog(`Configurando banner de llamada entrante...`);
+  document.body.appendChild(incomingCallBanner); // Flotante sobre todo
+
+  // Crear elemento de audio para ringtone si no existe
+  if (!window.ringtoneAudio) {
+    window.ringtoneAudio = document.createElement('audio');
+    window.ringtoneAudio.src = "https://cdn.pixabay.com/audio/2022/10/16/audio_12b6fae7b2.mp3"; // Ringtone libre de derechos
+    window.ringtoneAudio.loop = true;
+    window.ringtoneAudio.preload = "auto";
+    window.ringtoneAudio.style.display = "none";
+    document.body.appendChild(window.ringtoneAudio);
   }
 }
 
@@ -747,16 +752,22 @@ function showIncomingCall(callId, callData) {
   addDebugLog(`[*] Mostrando notificacion de llamada entrante de ${callData.callerName}`);
   activeIncomingCallId = callId;
 
+
   incomingCallBanner.innerHTML = `
     <div style="flex:1; min-width:0;">
-      <strong style="display:block; color:var(--text);">Llamada entrante</strong>
-      <span style="display:block; color:var(--muted); margin-top:4px;">${escapeHtml(callData.callerName || "Alguien")} te esta llamando.</span>
+      <strong style="display:block; color:var(--text); font-size:1.2em;">Llamada entrante</strong>
+      <span style="display:block; color:var(--muted); margin-top:8px; font-size:1em;">${escapeHtml(callData.callerName || "Alguien")} te está llamando.</span>
     </div>
-    <div class="callActions">
+    <div class="callActions" style="margin-top:18px; display:flex; gap:14px; justify-content:center;">
       <button class="btn small primary" id="acceptCallBtn">Aceptar</button>
       <button class="btn small danger" id="rejectCallBtn">Rechazar</button>
     </div>
   `;
+
+  // Reproducir ringtone
+  if (window.ringtoneAudio) {
+    try { window.ringtoneAudio.currentTime = 0; window.ringtoneAudio.play(); } catch(e) {}
+  }
 
   incomingCallBanner.classList.remove("hidden");
   addDebugLog(`[OK] Banner visible, botones disponibles`);
@@ -788,10 +799,11 @@ function showIncomingCall(callId, callData) {
   if (acceptBtn) {
     acceptBtn.onclick = async () => {
       clearTimeout(autoRejectTimeout); // Cancelar auto-rechazo
+      // Detener ringtone
+      if (window.ringtoneAudio) { try { window.ringtoneAudio.pause(); window.ringtoneAudio.currentTime = 0; } catch(e){} }
       addDebugLog(`[OK] Llamada aceptada, actualizando estado...`);
       receivedSignals.clear();
       addDebugLog(`[CLEAN] Limpiando signals anteriores...`);
-      
       try {
         await setDoc(doc(db, "llamadas", callId), {
           estado: "activa",
@@ -814,9 +826,10 @@ function showIncomingCall(callId, callData) {
   if (rejectBtn) {
     rejectBtn.onclick = async () => {
       clearTimeout(autoRejectTimeout); // Cancelar auto-rechazo
+      // Detener ringtone
+      if (window.ringtoneAudio) { try { window.ringtoneAudio.pause(); window.ringtoneAudio.currentTime = 0; } catch(e){} }
       receivedSignals.clear();
       addDebugLog(`[CLEAN] Llamada rechazada, limpiando signals...`);
-      
       try {
         await setDoc(doc(db, "llamadas", callId), {
           estado: "rechazada",
@@ -836,6 +849,8 @@ function hideIncomingCall() {
   activeIncomingCallId = null;
   incomingCallBanner.classList.add("hidden");
   incomingCallBanner.innerHTML = "";
+  // Detener ringtone si está sonando
+  if (window.ringtoneAudio) { try { window.ringtoneAudio.pause(); window.ringtoneAudio.currentTime = 0; } catch(e){} }
 }
 
 toggleCallMic?.addEventListener("click", () => {
