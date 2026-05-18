@@ -72,10 +72,10 @@ let callRef = null;
 let callStream = null;
 let callPeer = null;
 let callDocUnsubscribe = null;
-let callTimeoutId = null;
 let isCaller = false;
 let callOverlayOpen = false;
 let receivedSignals = new Set();
+let streamReceived = false;
 
 callLink.addEventListener("click", handleCallClick);
 
@@ -371,6 +371,7 @@ function setupCallSession(callId, remoteName) {
   if (!callOverlay) return;
   callSessionId = callId;
   callOverlayOpen = true;
+  streamReceived = false;
   callOverlay.classList.remove("hidden");
   callHeaderTitle.textContent = `Videollamada con ${remoteName}`;
   callHeaderSub.textContent = isCaller ? "Llamando..." : "Aceptando llamada...";
@@ -379,14 +380,6 @@ function setupCallSession(callId, remoteName) {
   addDebugLog(`🚀 Iniciando sesión. Caller: ${isCaller}`);
 
   callRef = doc(db, "llamadas", callId);
-  
-  // Timeout de 60 segundos: si no se conecta, finalizar automáticamente
-  callTimeoutId = setTimeout(async () => {
-    if (callPeer && !callPeer.connected) {
-      addDebugLog(`⏱️ Timeout: no se conectó después de 60s, finalizando...`);
-      await endCall();
-    }
-  }, 60000);
 
   startLocalMedia()
     .then(async () => {
@@ -470,6 +463,7 @@ function createPeerConnection() {
 
   callPeer.on("stream", (remoteStream) => {
     addDebugLog(`🎥 Stream remoto recibido: ${remoteStream?.getTracks().length} tracks`);
+    streamReceived = true;
     if (remoteStream) {
       callRemoteVideo.srcObject = remoteStream;
       callRemoteVideo.play().catch(() => {});
@@ -490,10 +484,14 @@ function createPeerConnection() {
   });
 
   callPeer.on("close", () => {
-    addDebugLog(`🔌 Peer cerrado`);
-    callStateLabel.textContent = "Llamada finalizada.";
-    closeOverlay();
-    cleanupCallSession();
+    addDebugLog(`🔌 Peer cerrado - TRIGGER`);
+    if (callOverlayOpen) {
+      callStateLabel.textContent = "Llamada finalizada.";
+      setTimeout(() => {
+        closeOverlay();
+        cleanupCallSession();
+      }, 2000);
+    }
   });
 
   callPeer.on("error", (err) => {
@@ -508,75 +506,65 @@ function listenCallDocument() {
   
   callDocUnsubscribe = onSnapshot(callRef, async (snapshot) => {
     if (!snapshot.exists()) {
-      addDebugLog(`⚠️ Documento de llamada no existe`);
+      addDebugLog(`⚠️ Documento no existe`);
       return;
     }
     const data = snapshot.data();
-    addDebugLog(`📄 Estado: ${data.estado}, signals: ${data.signals?.length || 0}, peer: ${callPeer ? "✅" : "❌"}`);
+    addDebugLog(`📄 Estado: ${data.estado}, signals: ${data.signals?.length || 0}`);
 
-    // Solo cerrar si fue rechazada O finalizada por el otro usuario
+    // Solo procesar estados finales si fueron iniciados por el otro usuario
     if (data.estado === "rechazada") {
       addDebugLog(`🚫 Llamada rechazada`);
-      callStateLabel.textContent = "La llamada fue rechazada.";
+      callStateLabel.textContent = "Rechazada.";
       setTimeout(() => {
         closeOverlay();
         cleanupCallSession();
-      }, 2000);
+      }, 1500);
       return;
     }
 
     if (data.estado === "finalizada" && data.finalizadaPor !== me.uid) {
-      addDebugLog(`🏁 Llamada finalizada por el otro usuario`);
-      callStateLabel.textContent = "La llamada terminó.";
+      addDebugLog(`🏁 Finalizada por: ${data.finalizadaPor}`);
+      callStateLabel.textContent = "Terminada.";
       setTimeout(() => {
         closeOverlay();
         cleanupCallSession();
-      }, 2000);
+      }, 1500);
       return;
     }
 
-    // Procesar signals solo si callPeer existe
+    // Si el documento pasó a "activa" pero no tuvimos "stream" aún, esperar
+    if (data.estado === "activa" && !streamReceived) {
+      addDebugLog(`⏳ Estado activa, esperando stream...`);
+      callStateLabel.textContent = "Esperando video...";
+    }
+
+    // Procesar signals
     const signals = Array.isArray(data.signals) ? data.signals : [];
-    let newSignals = 0;
-    
     if (callPeer && signals.length > 0) {
       for (const signalItem of signals) {
         if (!signalItem || signalItem.from === me.uid) continue;
         const signalKey = JSON.stringify(signalItem.signal);
         if (receivedSignals.has(signalKey)) continue;
         receivedSignals.add(signalKey);
-        newSignals++;
-        addDebugLog(`📥 Signal remoto: ${signalItem.signal.type}`);
+        addDebugLog(`📥 Signal: ${signalItem.signal.type}`);
         try {
           callPeer.signal(signalItem.signal);
           addDebugLog(`✅ Signal aplicado`);
         } catch (error) {
-          addDebugLog(`❌ Error aplicando signal: ${error.message}`);
+          addDebugLog(`❌ Error signal: ${error.message}`);
         }
       }
-      if (newSignals > 0) {
-        addDebugLog(`📦 ${newSignals} signals procesados`);
-      }
-    } else if (!callPeer && signals.length > 0) {
-      addDebugLog(`⏳ callPeer no existe aún, esperando...`);
-    }
-
-    if (!isCaller && data.estado === "activa") {
-      addDebugLog(`📞 Callee: llamada activa, esperando conexión...`);
-      callStateLabel.textContent = "Conectando...";
-    }
-
-    if (isCaller && data.estado === "activa") {
-      addDebugLog(`📞 Caller: llamada activa, esperando conexión...`);
-      callStateLabel.textContent = "Conectando...";
     }
   }, (error) => {
-    addDebugLog(`❌ Error escuchando documento: ${error.message}`);
+    addDebugLog(`❌ Error listener: ${error.message}`);
   });
 }
 
 async function endCall() {
-  addDebugLog(`📞 Colgando llamada...`);
+  addDebugLog(`📞 Colgando...`);
+  callOverlayOpen = false; // Prevenir que close handler lo haga de nuevo
+  
   if (callRef) {
     try {
       await setDoc(callRef, {
@@ -584,11 +572,12 @@ async function endCall() {
         finalizadaPor: me.uid,
         updatedAt: serverTimestamp()
       }, { merge: true });
-      addDebugLog(`✅ Llamada marcada finalizada`);
+      addDebugLog(`✅ Marcado finalizado`);
     } catch (error) {
       addDebugLog(`⚠️ Error finalizando: ${error.message}`);
     }
   }
+  
   closeOverlay();
   await cleanupCallSession();
 }
@@ -598,20 +587,18 @@ function hideCallOverlay() {
 }
 
 function closeOverlay() {
-  if (!callOverlay) return;
+  if (!callOverlay || !callOverlayOpen) return;
   callOverlay.classList.add("hidden");
   callOverlayOpen = false;
+  addDebugLog(`👁️ Overlay cerrado`);
 }
 
 function cleanupCallSession() {
   addDebugLog(`🧹 Limpiando sesión...`);
-  if (callTimeoutId) {
-    clearTimeout(callTimeoutId);
-    callTimeoutId = null;
-  }
   if (callDocUnsubscribe) callDocUnsubscribe();
   callDocUnsubscribe = null;
   receivedSignals.clear();
+  streamReceived = false;
   if (callPeer) {
     callPeer.destroy();
     callPeer = null;
