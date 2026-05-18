@@ -72,6 +72,7 @@ let callRef = null;
 let callStream = null;
 let callPeer = null;
 let callDocUnsubscribe = null;
+let callTimeoutId = null;
 let isCaller = false;
 let callOverlayOpen = false;
 let receivedSignals = new Set();
@@ -288,41 +289,29 @@ async function createCallRequest(calleeUid) {
   const callSnap = await getDoc(callRef);
   const previous = callSnap.exists() ? callSnap.data() : null;
   
-  addDebugLog(`🔍 Verificando llamada anterior...`);
-  
-  // Si hay una llamada anterior
-  if (previous) {
-    addDebugLog(`📋 Llamada anterior encontrada: estado=${previous.estado}`);
+  // Si hay llamada antigua, limpiarla
+  if (previous && (previous.estado === "invitando" || previous.estado === "activa")) {
+    const createdTime = previous.createdAt?.toMillis?.() || 0;
+    const now = Date.now();
+    const TIMEOUT = 2 * 60 * 1000; // 2 minutos
     
-    // Si ya está finalizada, permitir nueva llamada
-    if (previous.estado === "finalizada") {
-      addDebugLog(`✅ Llamada anterior finalizada, creando nueva...`);
-    }
-    // Si está en progreso (invitando o activa) y es reciente, rechazar
-    else if (previous.estado === "invitando" || previous.estado === "activa") {
-      const createdTime = previous.createdAt?.toMillis?.() || 0;
-      const now = Date.now();
-      const age = now - createdTime;
-      
-      if (age < 10 * 60 * 1000) {
-        // Menos de 10 minutos - rechazar
-        addDebugLog(`⏳ Llamada en progreso (${Math.floor(age / 1000)}s), rechazando...`);
-        alert("Ya hay una llamada en curso en esta conversación.");
-        return;
-      } else {
-        // Más de 10 minutos - limpiar
-        addDebugLog(`🧹 Llamada antigua (${Math.floor(age / 1000)}s), limpiando...`);
-        await setDoc(callRef, { estado: "finalizada", limpiadaAuto: true }, { merge: true });
-        await new Promise(resolve => setTimeout(resolve, 300));
+    if (now - createdTime > TIMEOUT) {
+      addDebugLog(`🧹 Limpiando llamada antigua (${Math.round((now - createdTime) / 1000)}s)...`);
+      try {
+        await setDoc(callRef, { estado: "finalizada", limpiadoAutomaticamente: true }, { merge: true });
+        addDebugLog(`✅ Llamada antigua limpiada`);
+      } catch (error) {
+        addDebugLog(`⚠️ Error limpiando: ${error.message}`);
       }
-    }
-    // Si fue rechazada, permitir nueva llamada
-    else if (previous.estado === "rechazada") {
-      addDebugLog(`✅ Llamada anterior rechazada, creando nueva...`);
+    } else {
+      const remainingSeconds = Math.round((TIMEOUT - (now - createdTime)) / 1000);
+      alert(`Ya hay una llamada en curso. Intenta en ${remainingSeconds} segundos.`);
+      addDebugLog(`⏳ Llamada en curso, no se puede crear otra (${remainingSeconds}s)`);
+      return;
     }
   }
 
-  addDebugLog(`🚀 Creando nueva solicitud de llamada...`);
+  addDebugLog(`📞 Creando nueva llamada...`);
   await setDoc(callRef, {
     conversationId: callId,
     caller: me.uid,
@@ -331,10 +320,10 @@ async function createCallRequest(calleeUid) {
     calleeName: activeConversation.nombres?.[calleeUid] || "Usuario",
     estado: "invitando",
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    signals: []
+    updatedAt: serverTimestamp()
   }, { merge: true });
 
+  addDebugLog(`✅ Documento de llamada creado`);
   callSessionId = callId;
   isCaller = true;
   setupCallSession(callId, activeConversation.nombres?.[calleeUid] || "Usuario");
@@ -387,18 +376,27 @@ function setupCallSession(callId, remoteName) {
   callHeaderSub.textContent = isCaller ? "Llamando..." : "Aceptando llamada...";
   callStateLabel.textContent = "Conectando...";
   debugPanel.style.display = "block";
-  addDebugLog(`🚀 Iniciando sesión de llamada. Caller: ${isCaller}`);
+  addDebugLog(`🚀 Iniciando sesión. Caller: ${isCaller}`);
 
   callRef = doc(db, "llamadas", callId);
+  
+  // Timeout de 60 segundos: si no se conecta, finalizar automáticamente
+  callTimeoutId = setTimeout(async () => {
+    if (callPeer && !callPeer.connected) {
+      addDebugLog(`⏱️ Timeout: no se conectó después de 60s, finalizando...`);
+      await endCall();
+    }
+  }, 60000);
+
   startLocalMedia()
     .then(async () => {
       createPeerConnection();
       listenCallDocument();
-      addDebugLog(`✅ Sesión de llamada iniciada`);
+      addDebugLog(`✅ Sesión iniciada`);
     })
     .catch((error) => {
-      addDebugLog(`❌ Error iniciando medios para la llamada: ${error.message}`);
-      callStateLabel.textContent = "No se pudo acceder a la cámara o al micrófono.";
+      addDebugLog(`❌ Error: ${error.message}`);
+      callStateLabel.textContent = "No se pudo acceder a cámara/micrófono.";
     });
 }
 
@@ -514,16 +512,16 @@ function listenCallDocument() {
       return;
     }
     const data = snapshot.data();
-    addDebugLog(`📄 Estado llamada: ${data.estado}, signals: ${data.signals?.length || 0}, peer: ${callPeer ? "✅" : "❌"}`);
+    addDebugLog(`📄 Estado: ${data.estado}, signals: ${data.signals?.length || 0}, peer: ${callPeer ? "✅" : "❌"}`);
 
-    // Solo procesa cambios de estado si NO somos nosotros los que lo causamos
-    if (data.estado === "rechazada" && data.rechazadoPor !== me.uid) {
-      addDebugLog(`🚫 Llamada rechazada por el otro usuario`);
+    // Solo cerrar si fue rechazada O finalizada por el otro usuario
+    if (data.estado === "rechazada") {
+      addDebugLog(`🚫 Llamada rechazada`);
       callStateLabel.textContent = "La llamada fue rechazada.";
       setTimeout(() => {
         closeOverlay();
         cleanupCallSession();
-      }, 1000);
+      }, 2000);
       return;
     }
 
@@ -533,7 +531,7 @@ function listenCallDocument() {
       setTimeout(() => {
         closeOverlay();
         cleanupCallSession();
-      }, 1000);
+      }, 2000);
       return;
     }
 
@@ -548,31 +546,28 @@ function listenCallDocument() {
         if (receivedSignals.has(signalKey)) continue;
         receivedSignals.add(signalKey);
         newSignals++;
-        addDebugLog(`📥 Signal remoto recibido: ${signalItem.signal.type}`);
+        addDebugLog(`📥 Signal remoto: ${signalItem.signal.type}`);
         try {
           callPeer.signal(signalItem.signal);
-          addDebugLog(`✅ Signal aplicado a peer`);
+          addDebugLog(`✅ Signal aplicado`);
         } catch (error) {
           addDebugLog(`❌ Error aplicando signal: ${error.message}`);
         }
       }
       if (newSignals > 0) {
-        addDebugLog(`📦 ${newSignals} signals nuevos procesados`);
+        addDebugLog(`📦 ${newSignals} signals procesados`);
       }
     } else if (!callPeer && signals.length > 0) {
-      addDebugLog(`⏳ callPeer aún no existe, esperando...`);
+      addDebugLog(`⏳ callPeer no existe aún, esperando...`);
     }
 
     if (!isCaller && data.estado === "activa") {
-      addDebugLog(`📞 Callee: llamada activa`);
-      if (!callPeer) {
-        addDebugLog(`⏳ callPeer no listo aún para callee`);
-      }
-      callStateLabel.textContent = "Aceptando llamada...";
+      addDebugLog(`📞 Callee: llamada activa, esperando conexión...`);
+      callStateLabel.textContent = "Conectando...";
     }
 
     if (isCaller && data.estado === "activa") {
-      addDebugLog(`📞 Caller: llamada activa`);
+      addDebugLog(`📞 Caller: llamada activa, esperando conexión...`);
       callStateLabel.textContent = "Conectando...";
     }
   }, (error) => {
@@ -582,27 +577,20 @@ function listenCallDocument() {
 
 async function endCall() {
   addDebugLog(`📞 Colgando llamada...`);
-  callOverlayOpen = false;
-  
   if (callRef) {
     try {
       await setDoc(callRef, {
         estado: "finalizada",
         finalizadaPor: me.uid,
-        finalizadoEn: serverTimestamp(),
         updatedAt: serverTimestamp()
       }, { merge: true });
-      addDebugLog(`✅ Llamada marcada como finalizada en Firestore`);
-      
-      // Esperar un poco antes de limpiar para que el cambio se replique
-      await new Promise(resolve => setTimeout(resolve, 500));
+      addDebugLog(`✅ Llamada marcada finalizada`);
     } catch (error) {
-      addDebugLog(`⚠️ Error marcando llamada como finalizada: ${error.message}`);
+      addDebugLog(`⚠️ Error finalizando: ${error.message}`);
     }
   }
-  
   closeOverlay();
-  cleanupCallSession();
+  await cleanupCallSession();
 }
 
 function hideCallOverlay() {
@@ -616,7 +604,11 @@ function closeOverlay() {
 }
 
 function cleanupCallSession() {
-  addDebugLog(`🧹 Limpiando sesión de llamada...`);
+  addDebugLog(`🧹 Limpiando sesión...`);
+  if (callTimeoutId) {
+    clearTimeout(callTimeoutId);
+    callTimeoutId = null;
+  }
   if (callDocUnsubscribe) callDocUnsubscribe();
   callDocUnsubscribe = null;
   receivedSignals.clear();
@@ -628,11 +620,11 @@ function cleanupCallSession() {
   if (callStream) {
     callStream.getTracks().forEach((track) => track.stop());
     callStream = null;
-    addDebugLog(`✅ Stream local detenido`);
+    addDebugLog(`✅ Stream detenido`);
   }
   callSessionId = null;
   callRef = null;
-  addDebugLog(`✅ Sesión limpiada completamente`);
+  addDebugLog(`✅ Sesión limpiada`);
 }
 
 function showIncomingCall(callId, callData) {
