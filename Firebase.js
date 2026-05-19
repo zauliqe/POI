@@ -18,7 +18,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyDorkeua4jkgxMtNs9unE4yJlLSo2DRk-4",
   authDomain: "camollin00.firebaseapp.com",
   projectId: "camollin00",
-  storageBucket: "camollin00.appspot.com",
+  storageBucket: "camollin00.firebasestorage.app",
   messagingSenderId: "670275619839",
   appId: "1:670275619839:web:878b26a2aa9f1732f0b5ca"
 };
