@@ -2058,3 +2058,51 @@ body.premiumTheme .msg.mine{
 body.premiumTheme .msg.theirs{
   background:linear-gradient(135deg, rgba(45,110,93,.92), rgba(44,42,94,.92));
 }
+
+/* Ubicacion */
+.locationCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: rgba(69, 214, 173, 0.08);
+  border: 1px solid rgba(69, 214, 173, 0.2);
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+
+.locationCard:hover {
+  background: rgba(69, 214, 173, 0.15);
+  transform: translateY(-1px);
+}
+
+.locationIcon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.locationInfo {
+  min-width: 0;
+  flex: 1;
+}
+
+.locationTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.locationLink {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.locationLink:hover {
+  text-decoration: underline;
+}

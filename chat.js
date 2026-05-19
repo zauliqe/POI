@@ -52,6 +52,9 @@ const clearAttachmentBtn = document.getElementById("clearAttachmentBtn");
 const enviarArchivoBtn = document.getElementById("enviarArchivo");
 const enviarStickerBtn = document.getElementById("enviarSticker");
 
+// Botón ubicación
+const locationBtn = document.getElementById("locationBtn");
+
 const userColors = ["#256f5c", "#355f9d", "#7a4d92", "#8a6333", "#8a3f5d", "#4f6f36", "#6b5a2f"];
 
 // Debug Panel Setup
@@ -1157,6 +1160,28 @@ function bindMessages(id) {
             </div>
           `;
         }
+      } else if (data.tipo === "ubicacion") {
+        const ubicacion = data.ubicacion || {};
+        const lat = ubicacion.lat || 0;
+        const lon = ubicacion.lon || 0;
+        const mapUrl = ubicacion.url || `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
+        
+        message.innerHTML = `
+          ${senderAvatar}
+          <div class="metaRow">
+            <span class="who">@${escapeHtml(data.usuario || "usuario")}</span>
+            <span class="time">${formatDate(data.fecha)}</span>
+          </div>
+          <div class="locationCard">
+            <div class="locationIcon">📍</div>
+            <div class="locationInfo">
+              <div class="locationTitle">Ubicación compartida</div>
+              <a href="${escapeHtml(mapUrl)}" target="_blank" rel="noopener noreferrer" class="locationLink">
+                Ver en el mapa →
+              </a>
+            </div>
+          </div>
+        `;
       } else {
         let plainText = data.texto || "";
 
@@ -1270,6 +1295,68 @@ async function sendStickerEspecial() {
   }
 }
 
+// Compartir ubicación con card (no image preview)
+async function sendLocation() {
+  if (!activeConversation) {
+    alert("Selecciona un contacto o grupo antes de compartir ubicación.");
+    return;
+  }
+
+  if (!navigator.geolocation) {
+    alert("Tu navegador no soporta geolocalización.");
+    return;
+  }
+
+  locationBtn.disabled = true;
+  locationBtn.style.opacity = "0.5";
+
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      });
+    });
+
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
+    const mapUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
+
+    await addDoc(collection(db, "conversaciones", activeConversation.id, "mensajes"), {
+      uid: me.uid,
+      usuario: profile.usuario || "usuario",
+      nombre: profile.nombre || profile.usuario || "Usuario",
+      foto: profile.foto || "",
+      marcoPerfil: profile.recompensasDesbloqueadas?.includes("marco_perfil") || false,
+      tipo: "ubicacion",
+      ubicacion: { lat, lon, url: mapUrl },
+      fecha: serverTimestamp()
+    });
+
+    await setDoc(doc(db, "conversaciones", activeConversation.id), {
+      ultimoMensaje: "📍 Ubicación compartida",
+      ultimoMensajeDe: me.uid,
+      actualizado: serverTimestamp()
+    }, { merge: true });
+
+  } catch (error) {
+    console.error("Error obteniendo ubicación:", error);
+    if (error.code === 1) {
+      alert("Permiso denegado para acceder a tu ubicación.");
+    } else if (error.code === 2) {
+      alert("No se pudo determinar tu ubicación. Intenta de nuevo.");
+    } else if (error.code === 3) {
+      alert("Tiempo de espera agotado. Revisa tu conexión.");
+    } else {
+      alert("Error al compartir ubicación: " + error.message);
+    }
+  } finally {
+    locationBtn.disabled = false;
+    locationBtn.style.opacity = "1";
+  }
+}
+
 function messageColor(seed = "") {
   let hash = 0;
   for (let index = 0; index < seed.length; index += 1) {
@@ -1309,6 +1396,8 @@ input.addEventListener("keydown", (event) => {
     sendMessage();
   }
 });
+
+locationBtn?.addEventListener("click", sendLocation);
 
 // Event listeners para adjuntos
 attachBtn?.addEventListener("click", () => {
@@ -1375,4 +1464,3 @@ function showAttachmentPreview(attachment) {
   attachmentSize.textContent = attachment.size;
   attachmentPreview.classList.remove("hidden");
 }
-
