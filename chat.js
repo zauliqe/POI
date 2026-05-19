@@ -347,7 +347,7 @@ function setupIncomingCallBanner() {
   // Crear elemento de audio para ringtone si no existe
   if (!window.ringtoneAudio) {
     window.ringtoneAudio = document.createElement('audio');
-    window.ringtoneAudio.src = "https://cdn.pixabay.com/audio/2022/10/16/audio_12b6fae7b2.mp3"; // Ringtone libre de derechos
+    window.ringtoneAudio.src = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"; // Notification sound
     window.ringtoneAudio.loop = true;
     window.ringtoneAudio.preload = "auto";
     window.ringtoneAudio.style.display = "none";
