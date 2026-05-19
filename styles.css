@@ -1322,6 +1322,35 @@ kbd{
     min-height:calc(100svh - 20px);
   }
 
+  .scrollPage .app{
+    min-height:100svh;
+    height:auto;
+    overflow:visible;
+  }
+
+  .scrollPage .main{
+    grid-template-rows:auto auto auto;
+    min-height:0;
+    overflow:visible;
+  }
+
+  .scrollPage .stage,
+  .scrollPage .stage.scrollStage{
+    min-height:0;
+    max-height:none;
+    height:auto;
+    overflow:visible;
+  }
+
+  .scrollPage .container{
+    padding-bottom:calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .scrollPage .notificationsList{
+    max-height:none;
+    overflow:visible;
+  }
+
   .topbar{
     align-items:flex-start;
     gap:10px;
@@ -1512,6 +1541,10 @@ kbd{
 
   .main{
     grid-template-rows:auto minmax(360px, 1fr) auto;
+  }
+
+  .scrollPage .main{
+    grid-template-rows:auto auto auto;
   }
 
   .topbar{
