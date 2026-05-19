@@ -923,21 +923,39 @@ function bindMessages(id) {
       if (data.tipo === "archivo" && data.archivo) {
         const arch = data.archivo;
         const icon = attachmentManager.getFileIcon?.(arch.tipo) || "📎";
-        message.innerHTML = `
-          <div class="metaRow">
-            <span class="who">@${escapeHtml(data.usuario || data.emisor || "usuario")}</span>
-            <span class="time">${formatDate(data.fecha || data.enviado)}</span>
-          </div>
-          <div class="attachmentMessage">
-            <a href="${escapeHtml(arch.url)}" target="_blank" download="${escapeHtml(arch.nombre)}" class="attachmentLink">
-              <span class="attachmentIcon">${icon}</span>
-              <div class="attachmentDetails">
-                <div class="attachmentFileName">${escapeHtml(arch.nombre)}</div>
-                <div class="attachmentFileSize">${formatFileSize(arch.tamaño)}</div>
-              </div>
-            </a>
-          </div>
-        `;
+        const isImage = arch.tipo && arch.tipo.startsWith("image/");
+        
+        if (isImage) {
+          // Mostrar imagen como preview
+          message.innerHTML = `
+            <div class="metaRow">
+              <span class="who">@${escapeHtml(data.usuario || data.emisor || "usuario")}</span>
+              <span class="time">${formatDate(data.fecha || data.enviado)}</span>
+            </div>
+            <div class="imagePreview">
+              <a href="${escapeHtml(arch.url)}" target="_blank" download="${escapeHtml(arch.nombre)}">
+                <img src="${escapeHtml(arch.url)}" alt="${escapeHtml(arch.nombre)}" title="${escapeHtml(arch.nombre)}">
+              </a>
+            </div>
+          `;
+        } else {
+          // Mostrar archivo como link
+          message.innerHTML = `
+            <div class="metaRow">
+              <span class="who">@${escapeHtml(data.usuario || data.emisor || "usuario")}</span>
+              <span class="time">${formatDate(data.fecha || data.enviado)}</span>
+            </div>
+            <div class="attachmentMessage">
+              <a href="${escapeHtml(arch.url)}" target="_blank" download="${escapeHtml(arch.nombre)}" class="attachmentLink">
+                <span class="attachmentIcon">${icon}</span>
+                <div class="attachmentDetails">
+                  <div class="attachmentFileName">${escapeHtml(arch.nombre)}</div>
+                  <div class="attachmentFileSize">${formatFileSize(arch.tamaño)}</div>
+                </div>
+              </a>
+            </div>
+          `;
+        }
       } else {
         // Mensaje de texto regular
         message.innerHTML = `

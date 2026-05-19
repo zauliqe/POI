@@ -500,7 +500,10 @@ a:hover{opacity:.95}
 }
 .messages{
   padding:16px;
-  overflow:auto;
+  padding-right:8px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
 }
 .messages::-webkit-scrollbar{width:8px}
 .messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08); border-radius:999px}
@@ -574,6 +577,25 @@ a:hover{opacity:.95}
   font-size:11px;
   color:var(--muted2);
   margin-top:2px;
+}
+
+/* Image preview in messages */
+.imagePreview {
+  margin-top:8px;
+  max-width:280px;
+  border-radius:12px;
+  overflow:hidden;
+  border:1px solid var(--stroke);
+}
+.imagePreview img {
+  width:100%;
+  height:auto;
+  display:block;
+  cursor:pointer;
+  transition:opacity 0.2s ease;
+}
+.imagePreview img:hover {
+  opacity:0.9;
 }
 
 .composer{
@@ -877,6 +899,10 @@ kbd{
     border-radius:16px;
   }
 
+  .imagePreview {
+    max-width:200px;
+  }
+
   .msg .metaRow{
     align-items:flex-start;
     flex-direction:column;
@@ -1024,6 +1050,10 @@ kbd{
   
   .attachmentName{
     font-size:12px;
+  }
+
+  .imagePreview {
+    max-width:160px;
   }
   
   .attachmentIcon{
