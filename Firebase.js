@@ -9,6 +9,10 @@ import {
 getAuth
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+import {
+getStorage
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
 
 
 // CONFIGURACION
@@ -33,7 +37,10 @@ export const db = getFirestore(app);
 // autenticación
 export const auth = getAuth(app);
 
+// storage para archivos e imágenes
+export const storage = getStorage(app);
+
 // exportar
-// export { db, auth };
+// export { db, auth, storage };
 
 console.log("Firebase conectado");

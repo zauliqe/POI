@@ -1,4 +1,4 @@
-import { db } from "./Firebase.js";
+import { db, storage } from "./Firebase.js";
 import {
   addDoc,
   arrayUnion,
@@ -13,11 +13,14 @@ import {
   setDoc,
   where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { currentConversationId, formatDate, initials, isUserOnline, privateConversationId, requireAuth } from "./app.js";
 import { callManager } from "./call-manager.js";
 const sendButton = document.getElementById("enviar");
 const input = document.getElementById("mensaje");
 const chat = document.getElementById("chat");
+const fileInput = document.getElementById("fileInput");
+const attachBtn = document.getElementById("attachBtn");
 const contacts = document.getElementById("contactsList");
 const groups = document.getElementById("groupsList");
 const title = document.getElementById("chatTitle");
@@ -906,13 +909,36 @@ function bindMessages(id) {
       const message = document.createElement("article");
       message.className = `msg ${mine ? "mine" : "theirs"} ${activeConversation?.tipo === "grupo" ? "groupMsg" : ""}`;
       if (!mine) message.style.setProperty("--bubble", messageColor(data.uid || data.usuario));
-      message.innerHTML = `
+      
+      let contentHTML = `
         <div class="metaRow">
           <span class="who">@${escapeHtml(data.usuario || "usuario")}</span>
           <span class="time">${formatDate(data.fecha)}</span>
         </div>
-        <div class="text">${escapeHtml(data.texto || "")}</div>
       `;
+      
+      // Renderizar archivo si existe
+      if (data.archivo) {
+        const { url, nombre, tipo, tamaño } = data.archivo;
+        const isImage = isImageType(tipo);
+        
+        if (isImage) {
+          // Mostrar imagen incrustada
+          contentHTML += `<div class="msgImage"><img src="${escapeHtml(url)}" alt="Imagen" style="max-width:100%; max-height:300px; border-radius:12px; cursor:pointer;" onclick="window.open('${escapeHtml(url)}', '_blank')"/></div>`;
+        } else {
+          // Mostrar archivo como descarga
+          const icon = getFileIcon(nombre);
+          const sizeKB = (tamaño / 1024).toFixed(1);
+          contentHTML += `<div class="msgFile"><a href="${escapeHtml(url)}" target="_blank" download="${escapeHtml(nombre)}" class="fileLink">${icon} ${escapeHtml(nombre)} (${sizeKB} KB)</a></div>`;
+        }
+      }
+      
+      // Mostrar texto si existe
+      if (data.texto) {
+        contentHTML += `<div class="text">${escapeHtml(data.texto || "")}</div>`;
+      }
+      
+      message.innerHTML = contentHTML;
       chat.appendChild(message);
     });
     chat.scrollTop = chat.scrollHeight;
@@ -972,7 +998,87 @@ function escapeHtml(value) {
   }[char]));
 }
 
+// Funciones para manejar archivos e imágenes
+async function uploadFile(file) {
+  if (!file || !activeConversation) return null;
+  
+  try {
+    const timestamp = Date.now();
+    const fileName = `${timestamp}_${file.name}`;
+    const conversationPath = `chats/${activeConversation.id}/${fileName}`;
+    const storageRef = ref(storage, conversationPath);
+    
+    console.log(`[Uploading] ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+    
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+    
+    console.log(`[Uploaded] ${file.name} -> ${downloadURL}`);
+    return {
+      url: downloadURL,
+      name: file.name,
+      type: file.type,
+      size: file.size
+    };
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    alert("Error al subir archivo. Intenta de nuevo.");
+    return null;
+  }
+}
+
+async function sendFileMessage(file) {
+  if (!file) return;
+  
+  const fileData = await uploadFile(file);
+  if (!fileData) return;
+  
+  try {
+    const msgRef = collection(db, "conversaciones", activeConversation.id, "mensajes");
+    await addDoc(msgRef, {
+      de: me.uid,
+      texto: "", // Mensaje vacío
+      archivo: {
+        url: fileData.url,
+        nombre: fileData.name,
+        tipo: fileData.type,
+        tamaño: fileData.size
+      },
+      enviado: serverTimestamp()
+    });
+    
+    fileInput.value = ""; // Limpiar input
+  } catch (error) {
+    console.error("Error sending file message:", error);
+    alert("Error al guardar el archivo. Intenta de nuevo.");
+  }
+}
+
+function isImageType(mimeType) {
+  return mimeType && mimeType.startsWith("image/");
+}
+
+function getFileIcon(fileName) {
+  const ext = fileName.split(".").pop().toLowerCase();
+  const icons = {
+    pdf: "📄",
+    doc: "📝",
+    docx: "📝",
+    xls: "📊",
+    xlsx: "📊",
+    txt: "📃",
+    zip: "📦",
+    rar: "📦"
+  };
+  return icons[ext] || "📎";
+}
+
 sendButton.addEventListener("click", sendMessage);
+attachBtn?.addEventListener("click", () => fileInput?.click());
+fileInput?.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  if (file) sendFileMessage(file);
+});
 input.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
