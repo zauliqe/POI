@@ -145,8 +145,10 @@ export class AttachmentManager {
 
       // Actualizar timestamp de conversación
       await setDoc(doc(db, "conversaciones", conversationId), {
-        actualizado: serverTimestamp()
-      }, { merge: true });
+  ultimoMensaje: `📎 ${attachmentData.name}`,
+  ultimoMensajeDe: userId,
+  actualizado: serverTimestamp()
+}, { merge: true });
 
     } catch (error) {
       throw new Error(`Error guardando archivo en chat: ${error.message}`);

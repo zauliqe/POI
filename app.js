@@ -42,6 +42,16 @@ export async function ensureUserProfile(user) {
   return { uid: user.uid, ...fallback };
 }
 
+export function applyPremiumTheme(profile = {}) {
+  const desbloqueadas = profile.recompensasDesbloqueadas || [];
+
+  if (desbloqueadas.includes("tema_premium")) {
+    document.body.classList.add("premiumTheme");
+  } else {
+    document.body.classList.remove("premiumTheme");
+  }
+}
+
 export function requireAuth(callback) {
   return onAuthStateChanged(auth, async (user) => {
     if (!user) {
@@ -50,9 +60,10 @@ export function requireAuth(callback) {
     }
 
     const profile = await ensureUserProfile(user);
-    await setOnline(user.uid);
-    window.addEventListener("beforeunload", () => setOffline(user.uid).catch(() => {}), { once: true });
-    callback(user, profile);
+applyPremiumTheme(profile);
+await setOnline(user.uid);
+window.addEventListener("beforeunload", () => setOffline(user.uid).catch(() => {}), { once: true });
+callback(user, profile);
   });
 }
 

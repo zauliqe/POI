@@ -27,17 +27,18 @@ boton.addEventListener("click", async () => {
     const user = userCredential.user;
 
     await setDoc(doc(db, "usuarios", user.uid), {
-      nombre,
-      usuario,
-      usuarioLower: usuario.toLowerCase(),
-      correo,
-      telefono,
-      foto: "",
-      estado: "offline",
-      ultimoActivo: serverTimestamp(),
-      puntos: 120,
-      creado: serverTimestamp()
-    });
+  nombre,
+  usuario,
+  usuarioLower: usuario.toLowerCase(),
+  correo,
+  telefono,
+  foto: "",
+  estado: "offline",
+  ultimoActivo: serverTimestamp(),
+  puntos: 120,
+  recompensasDesbloqueadas: [],
+  creado: serverTimestamp()
+});
 
     await signOut(auth);
     alert("Usuario registrado correctamente. Ahora inicia sesión.");

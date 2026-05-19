@@ -16,6 +16,8 @@ import {
 import { currentConversationId, formatDate, initials, isUserOnline, privateConversationId, requireAuth } from "./app.js";
 import { callManager } from "./call-manager.js";
 import { attachmentManager } from "./attachment-manager.js";
+import { encryptText, decryptText } from "./crypto-utils.js";
+
 
 const sendButton = document.getElementById("enviar");
 const input = document.getElementById("mensaje");
@@ -48,6 +50,7 @@ const attachmentName = document.getElementById("attachmentName");
 const attachmentSize = document.getElementById("attachmentSize");
 const clearAttachmentBtn = document.getElementById("clearAttachmentBtn");
 const enviarArchivoBtn = document.getElementById("enviarArchivo");
+const enviarStickerBtn = document.getElementById("enviarSticker");
 
 const userColors = ["#256f5c", "#355f9d", "#7a4d92", "#8a6333", "#8a3f5d", "#4f6f36", "#6b5a2f"];
 
@@ -79,6 +82,7 @@ let me = null;
 let profile = null;
 let activeConversation = null;
 let stopMessages = null;
+let stopRecentChats = null;
 let activeIncomingCallId = null;
 let callSessionId = null;
 let callRef = null;
@@ -96,6 +100,9 @@ callLink.addEventListener("click", handleCallClick);
 requireAuth(async (user, userProfile) => {
   me = user;
   profile = userProfile;
+
+  await configurarStickerEspecial();
+
   bindUsers();
   bindGroups();
   setupIncomingCallBanner();
@@ -105,7 +112,7 @@ requireAuth(async (user, userProfile) => {
   if (conversationFromUrl) {
     await openConversation(conversationFromUrl);
   } else {
-    showEmpty("Selecciona un contacto o grupo para empezar.");
+    showRecentChats();
   }
 
   // Auto-colgar si salgo de la pgina o pierdo visibilidad
@@ -166,6 +173,172 @@ function showEmpty(message) {
   renderAvatar(headerAvatar, { nombre: "Chats" });
   callLink.classList.add("disabled");
   chat.innerHTML = `<div class="emptyState">${message}</div>`;
+}
+async function configurarStickerEspecial() {
+  if (!me || !enviarStickerBtn) return;
+
+  try {
+    const userSnap = await getDoc(doc(db, "usuarios", me.uid));
+
+    if (!userSnap.exists()) {
+      enviarStickerBtn.classList.add("hidden");
+      return;
+    }
+
+    const userData = userSnap.data();
+    const desbloqueadas = userData.recompensasDesbloqueadas || [];
+
+    console.log("Recompensas desbloqueadas:", desbloqueadas);
+
+    if (desbloqueadas.includes("sticker_especial")) {
+      enviarStickerBtn.classList.remove("hidden");
+    } else {
+      enviarStickerBtn.classList.add("hidden");
+    }
+  } catch (error) {
+    console.error("Error revisando sticker especial:", error);
+    enviarStickerBtn.classList.add("hidden");
+  }
+}
+
+function showRecentChats() {
+  activeConversation = null;
+  title.textContent = "Chats";
+  subtitle.textContent = "Chats recientes";
+  renderAvatar(headerAvatar, { nombre: "Chats" });
+  callLink.classList.add("disabled");
+
+  if (stopMessages) {
+    stopMessages();
+    stopMessages = null;
+  }
+
+  if (stopRecentChats) {
+    stopRecentChats();
+    stopRecentChats = null;
+  }
+
+  const q = query(
+    collection(db, "conversaciones"),
+    where("miembros", "array-contains", me.uid)
+  );
+
+  stopRecentChats = onSnapshot(q, async (snapshot) => {
+    if (activeConversation) return;
+
+    const recentChats = snapshot.docs
+      .map((item) => ({ id: item.id, ...item.data() }))
+      .filter((conv) => conv.ultimoMensaje && String(conv.ultimoMensaje).trim() !== "")
+      .sort((a, b) => {
+        const aDate = a.actualizado?.toDate ? a.actualizado.toDate().getTime() : 0;
+        const bDate = b.actualizado?.toDate ? b.actualizado.toDate().getTime() : 0;
+        return bDate - aDate;
+      });
+
+    if (!recentChats.length) {
+      chat.innerHTML = `
+        <div class="recentChatsHome">
+          <div class="recentHeader">
+            <div>
+              <div class="pill">Recientes</div>
+              <h2 class="h2" style="margin-top:10px;">Chats recientes</h2>
+              <p class="p">Cuando envíes o recibas mensajes, aparecerán aquí.</p>
+            </div>
+          </div>
+          <div class="emptyState">Aún no tienes chats recientes.</div>
+        </div>
+      `;
+      return;
+    }
+
+    chat.innerHTML = `
+      <div class="recentChatsHome">
+        <div class="recentHeader">
+          <div>
+            <div class="pill">Recientes</div>
+            <h2 class="h2" style="margin-top:10px;">Chats recientes</h2>
+            <p class="p">Últimas conversaciones con actividad.</p>
+          </div>
+        </div>
+        <div class="recentChatsList"></div>
+      </div>
+    `;
+
+    const list = chat.querySelector(".recentChatsList");
+
+    for (const conv of recentChats) {
+      const info = await getConversationPreview(conv);
+
+      const lastMessage = conv.ultimoMensajeCifrado
+        ? await decryptText(conv.ultimoMensaje || "")
+        : conv.ultimoMensaje || "Sin mensajes todavía";
+
+      const row = document.createElement("a");
+      row.className = "recentChatItem";
+      row.href = `dashboard.html?c=${conv.id}`;
+
+      row.innerHTML = `
+        <div class="avatar recentAvatar">${avatarContent(info)}</div>
+        <div class="recentChatText">
+          <div class="recentChatTop">
+            <div class="recentChatName">${escapeHtml(info.nombre || "Chat")}</div>
+            <div class="recentChatTime">${formatDate(conv.actualizado)}</div>
+          </div>
+          <div class="recentChatMsg">${escapeHtml(lastMessage)}</div>
+        </div>
+      `;
+
+      row.addEventListener("click", async (event) => {
+        event.preventDefault();
+        history.replaceState(null, "", `dashboard.html?c=${conv.id}`);
+        await openConversation(conv.id);
+      });
+
+      list.appendChild(row);
+    }
+  }, (error) => {
+    console.error("Error al cargar chats recientes:", error);
+    chat.innerHTML = `<div class="emptyState">No se pudieron cargar los chats recientes.</div>`;
+  });
+}
+
+async function getConversationPreview(conv) {
+  if (conv.tipo === "grupo") {
+    return {
+      nombre: conv.nombre || "Grupo",
+      usuario: "grupo",
+      foto: ""
+    };
+  }
+
+  const otherUid = conv.miembros?.find((uid) => uid !== me.uid);
+
+  if (otherUid) {
+    try {
+      const userSnap = await getDoc(doc(db, "usuarios", otherUid));
+      if (userSnap.exists()) {
+        const user = userSnap.data();
+        return {
+          nombre: user.nombre || user.usuario || "Chat privado",
+          usuario: user.usuario || "usuario",
+          foto: user.foto || ""
+        };
+      }
+    } catch (error) {
+      console.error("Error al cargar usuario del chat reciente:", error);
+    }
+  }
+
+  const name =
+    conv.nombres?.[otherUid] ||
+    conv.usuarios?.[otherUid] ||
+    "Chat privado";
+
+  return {
+    nombre: name,
+    usuario: "usuario",
+    foto: ""
+  };
 }
 
 function bindUsers() {
@@ -263,6 +436,11 @@ async function ensurePrivateConversation(user) {
 }
 
 async function openConversation(id) {
+  if (stopRecentChats) {
+    stopRecentChats();
+    stopRecentChats = null;
+  }
+
   if (stopMessages) stopMessages();
 
   const snap = await getDoc(doc(db, "conversaciones", id));
@@ -910,29 +1088,45 @@ closeCallOverlayButton?.addEventListener("click", () => {
 
 function bindMessages(id) {
   const q = query(collection(db, "conversaciones", id, "mensajes"), orderBy("fecha"));
-  stopMessages = onSnapshot(q, (snapshot) => {
+
+  stopMessages = onSnapshot(q, async (snapshot) => {
     chat.innerHTML = "";
+
     if (snapshot.empty) {
       chat.innerHTML = `<div class="emptyState">Aún no hay mensajes. Escribe el primero.</div>`;
       return;
     }
 
-    snapshot.forEach((item) => {
+    for (const item of snapshot.docs) {
       const data = item.data();
       const mine = data.uid === me.uid || data.emisor === me.uid;
+
       const message = document.createElement("article");
       message.className = `msg ${mine ? "mine" : "theirs"} ${activeConversation?.tipo === "grupo" ? "groupMsg" : ""}`;
-      if (!mine) message.style.setProperty("--bubble", messageColor(data.uid || data.usuario || data.emisor));
-      const senderAvatar = activeConversation?.tipo === "grupo" && !mine ? `<div class="msgAvatar">${avatarContent(data)}</div>` : "";
-      
-      // Manejar mensajes de archivo
-      if (data.tipo === "archivo" && data.archivo) {
+
+      if (!mine) {
+        message.style.setProperty("--bubble", messageColor(data.uid || data.usuario || data.emisor));
+      }
+
+      const senderAvatar = activeConversation?.tipo === "grupo" && !mine
+        ? `<div class="msgAvatar${avatarRewardClass(data)}">${avatarContent(data)}</div>`
+        : "";
+
+      if (data.tipo === "sticker") {
+        message.innerHTML = `
+          ${senderAvatar}
+          <div class="metaRow">
+            <span class="who">@${escapeHtml(data.usuario || "usuario")}</span>
+            <span class="time">${formatDate(data.fecha)}</span>
+          </div>
+          <div class="stickerMessage">${escapeHtml(data.sticker || "🏆")}</div>
+        `;
+      } else if (data.tipo === "archivo" && data.archivo) {
         const arch = data.archivo;
         const icon = attachmentManager.getFileIcon?.(arch.tipo) || "📎";
         const isImage = arch.tipo && arch.tipo.startsWith("image/");
-        
+
         if (isImage) {
-          // Mostrar imagen como preview
           message.innerHTML = `
             ${senderAvatar}
             <div class="metaRow">
@@ -946,7 +1140,6 @@ function bindMessages(id) {
             </div>
           `;
         } else {
-          // Mostrar archivo como link
           message.innerHTML = `
             ${senderAvatar}
             <div class="metaRow">
@@ -965,18 +1158,25 @@ function bindMessages(id) {
           `;
         }
       } else {
-        // Mensaje de texto regular
+        let plainText = data.texto || "";
+
+        if (data.cifrado) {
+          plainText = await decryptText(data.texto || "");
+        }
+
         message.innerHTML = `
           ${senderAvatar}
           <div class="metaRow">
             <span class="who">@${escapeHtml(data.usuario || "usuario")}</span>
             <span class="time">${formatDate(data.fecha)}</span>
           </div>
-          <div class="text">${escapeHtml(data.texto || "")}</div>
+          <div class="text">${escapeHtml(plainText)}</div>
         `;
       }
+
       chat.appendChild(message);
-    });
+    }
+
     chat.scrollTop = chat.scrollHeight;
   }, (error) => {
     console.error("Error al leer mensajes:", error);
@@ -996,33 +1196,77 @@ function formatFileSize(bytes) {
 async function sendMessage() {
   const text = input.value.trim();
   if (!text) return;
+
   if (!activeConversation) {
     alert("Selecciona un contacto o grupo antes de enviar.");
     return;
   }
 
   sendButton.disabled = true;
+
   try {
+    const encryptedText = await encryptText(text);
+
     await addDoc(collection(db, "conversaciones", activeConversation.id, "mensajes"), {
       uid: me.uid,
       usuario: profile.usuario || "usuario",
       nombre: profile.nombre || profile.usuario || "Usuario",
       foto: profile.foto || "",
-      texto: text,
+      marcoPerfil: profile.recompensasDesbloqueadas?.includes("marco_perfil") || false,
+      texto: encryptedText,
+      cifrado: true,
       fecha: serverTimestamp()
     });
+
     await setDoc(doc(db, "conversaciones", activeConversation.id), {
-      ultimoMensaje: text,
+      ultimoMensaje: encryptedText,
+      ultimoMensajeCifrado: true,
       ultimoMensajeDe: me.uid,
       actualizado: serverTimestamp()
     }, { merge: true });
+
     input.value = "";
     input.focus();
   } catch (error) {
     console.error("Error al enviar mensaje:", error);
-    alert("No se pudo enviar el mensaje. Revisa que hayas iniciado sesin y que Firestore permita escritura.");
+    alert("No se pudo enviar el mensaje. Revisa que hayas iniciado sesión y que Firestore permita escritura.");
   } finally {
     sendButton.disabled = false;
+  }
+}
+
+async function sendStickerEspecial() {
+  if (!activeConversation) {
+    alert("Selecciona un contacto o grupo antes de enviar.");
+    return;
+  }
+
+  if (!profile.recompensasDesbloqueadas?.includes("sticker_especial")) {
+    alert("Primero debes desbloquear este sticker en Recompensas.");
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "conversaciones", activeConversation.id, "mensajes"), {
+  uid: me.uid,
+  usuario: profile.usuario || "usuario",
+  nombre: profile.nombre || profile.usuario || "Usuario",
+  foto: profile.foto || "",
+  marcoPerfil: profile.recompensasDesbloqueadas?.includes("marco_perfil") || false,
+  tipo: "sticker",
+  sticker: "🏆",
+  texto: "Sticker especial",
+  fecha: serverTimestamp()
+});
+
+    await setDoc(doc(db, "conversaciones", activeConversation.id), {
+      ultimoMensaje: "🏆 Sticker especial",
+      ultimoMensajeDe: me.uid,
+      actualizado: serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.error("Error al enviar sticker:", error);
+    alert("No se pudo enviar el sticker.");
   }
 }
 
@@ -1049,11 +1293,16 @@ function avatarContent(data = {}) {
   return initials(data.nombre || data.usuario || data.name || "U");
 }
 
+function avatarRewardClass(data = {}) {
+  return data.marcoPerfil ? " rewardFrame" : "";
+}
+
 function renderAvatar(element, data = {}) {
   element.innerHTML = avatarContent(data);
 }
 
 sendButton.addEventListener("click", sendMessage);
+enviarStickerBtn?.addEventListener("click", sendStickerEspecial);
 input.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
@@ -1126,3 +1375,4 @@ function showAttachmentPreview(attachment) {
   attachmentSize.textContent = attachment.size;
   attachmentPreview.classList.remove("hidden");
 }
+

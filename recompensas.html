@@ -9,21 +9,36 @@
 <body>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Recompensas</div></div></div>
-    <nav class="nav">
-      <a href="dashboard.html">Chats</a>
-      <a class="active" href="recompensas.html">Recompensas</a>
-      <a href="tareas-grupo.html">Tareas del grupo</a>
-      <a href="perfil.html">Perfil</a>
-    </nav>
-    <div class="sideSection">
-      <div class="pill">Info</div>
-      <nav class="nav">
-        <a href="mundial.html">Mundial 2026</a>
-        <a href="acerca-de.html">Acerca de</a>
-      </nav>
+  <div class="brand">
+    <div class="logo"></div>
+    <div>
+      <b class="titulo_logo">CamOllin</b>
+      <div style="font-size:16px; color:var(--muted);">Menú</div>
     </div>
-  </aside>
+  </div>
+
+  <div class="sideSection">
+    <nav class="nav navGroup">
+
+      <details class="navDropdown">
+        <summary>Chats</summary>
+        <div class="subNav">
+          <a href="notificaciones.html">Notificaciones</a>
+          <a href="dashboard.html">Chats</a>
+          <a href="crear-grupo.html">Crear grupo</a>
+          <a href="tareas-grupo.html">Tareas de grupo</a>
+          <a href="crear-tarea.html">Crear tarea</a>
+        </div>
+      </details>
+
+      <a href="recompensas.html">Recompensas</a>
+      <a href="perfil.html">Perfil</a>
+      <a href="mundial.html">Mundial 2026</a>
+      <a href="acerca-de.html">Acerca</a>
+
+    </nav>
+  </div>
+</aside>
 
   <main class="main">
     <header class="topbar">
@@ -38,19 +53,19 @@
             <div class="pill">10 pts</div>
             <h2 class="h2" style="margin-top:10px;">Sticker especial</h2>
             <p class="p">Desbloquea un sticker para el chat.</p>
-            <button class="btn small primary" style="margin-top:12px;" data-reward="Sticker especial" data-cost="10">Canjear</button>
+            <button class="btn small primary" style="margin-top:12px;" data-reward="Sticker especial" data-reward-id="sticker_especial" data-cost="10">Canjear</button>
           </div>
           <div class="card pad">
             <div class="pill">50 pts</div>
             <h2 class="h2" style="margin-top:10px;">Marco de perfil</h2>
             <p class="p">Borde brillante para tu avatar.</p>
-            <button class="btn small primary" style="margin-top:12px;" data-reward="Marco de perfil" data-cost="50">Canjear</button>
+            <button class="btn small primary" style="margin-top:12px;" data-reward="Marco de perfil" data-reward-id="marco_perfil" data-cost="50">Canjear</button>
           </div>
           <div class="card pad">
             <div class="pill">100 pts</div>
             <h2 class="h2" style="margin-top:10px;">Tema premium</h2>
             <p class="p">Variación del tema oscuro.</p>
-            <button class="btn small primary" style="margin-top:12px;" data-reward="Tema premium" data-cost="100">Canjear</button>
+            <button class="btn small primary" style="margin-top:12px;" data-reward="Tema premium" data-reward-id="tema_premium" data-cost="100">Canjear</button>
           </div>
         </div>
       </div>

@@ -9,48 +9,49 @@
 <body>
   <div class="app">
     <aside class="sidebar">
-      <div class="brand">
-        <div class="logo"></div>
-        <div>
-          <b class="titulo_logo">CamOllin</b>
-          <div style="font-size:16px; color:var(--muted);">Chats</div>
-        </div>
-      </div>
+  <div class="brand">
+    <div class="logo"></div>
+    <div>
+      <b class="titulo_logo">CamOllin</b>
+      <div style="font-size:16px; color:var(--muted);">Menú</div>
+    </div>
+  </div>
 
-      <div class="sideSection">
-        <!--<div class="pill">Menú</div> -->
-        <nav class="nav">
-          <a class="active" href="dashboard.html">Chats</a>
-          <a href="recompensas.html">Recompensas</a>
-          <a href="tareas-grupo.html">Tareas del grupo</a>
-          <a href="crear-grupo.html">Crear grupo</a>
+  <div class="sideSection">
+    <nav class="nav navGroup">
+
+      <details class="navDropdown">
+        <summary>Chats</summary>
+        <div class="subNav">
           <a href="notificaciones.html">Notificaciones</a>
-          <a href="perfil.html">Perfil</a>
-        </nav>
-      </div>
+          <a href="dashboard.html">Chats</a>
+          <a href="crear-grupo.html">Crear grupo</a>
+          <a href="tareas-grupo.html">Tareas de grupo</a>
+          <a href="crear-tarea.html">Crear tarea</a>
+        </div>
+      </details>
 
-      <div class="sideSection">
-        <!-- <div class="pill">Info</div> -->
-        <nav class="nav">
-          <a href="mundial.html">Mundial 2026</a>
-          <a href="acerca-de.html">Acerca de</a>
-        </nav>
-      </div>
+      <a href="recompensas.html">Recompensas</a>
+      <a href="perfil.html">Perfil</a>
+      <a href="mundial.html">Mundial 2026</a>
+      <a href="acerca-de.html">Acerca</a>
 
-      <div class="sideSection">
-        <!-- <div class="pill">Personas</div> -->
-        <div class="list" id="contactsList"></div>
-      </div>
+    </nav>
+  </div>
+   <div class="chatsBox">
+    <div class="pill chatsTitle">Chats</div>
 
-      <div class="sideSection">
-        <div class="pill">Grupos</div>
-        <div class="list compact" id="groupsList"></div>
-      </div>
+    <div class="chatMiniTitle">Personas</div>
+    <div class="list chatsList" id="contactsList"></div>
 
-      <div class="sideSection" style="margin-top:14px;">
-        <button id="btnCerrarSesion" class="btn danger" style="width:100%;">Cerrar sesión</button>
-      </div>
-    </aside>
+    <div class="chatMiniTitle">Grupos</div>
+    <div class="list chatsList compact" id="groupsList"></div>
+  </div>
+
+  <div class="logoutBox">
+    <button id="btnCerrarSesion" class="btn danger" style="width:100%;">Cerrar sesión</button>
+  </div>
+</aside>
 
     <main class="main">
       <header class="topbar">
@@ -94,8 +95,9 @@
           <input id="mensaje" placeholder="Mensaje..." />
           <kbd>Enter</kbd>
         </div>
-        <button id="enviar" class="btn primary">Enviar</button>
-        <button id="enviarArchivo" class="btn primary hidden" title="Enviar archivo">📤</button>
+        <button id="enviarSticker" class="btn hidden" type="button" title="Enviar sticker especial">🏆</button>
+<button id="enviar" class="btn primary">Enviar</button>
+<button id="enviarArchivo" class="btn primary hidden" title="Enviar archivo">📤</button>
       </footer>
     </main>
   </div>

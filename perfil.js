@@ -22,7 +22,8 @@ let fotoPerfil = "";
 requireAuth((user, profile) => {
   miUID = user.uid;
   fotoPerfil = profile.foto || "";
-  nombreInput.value = profile.nombre || "";
+aplicarMarcoPerfil(profile);
+nombreInput.value = profile.nombre || "";
   usuarioInput.value = profile.usuario || "";
   correoInput.value = profile.correo || user.email || "";
   telefonoInput.value = profile.telefono || "";
@@ -92,6 +93,19 @@ function renderPhoto() {
     photoPreview.removeAttribute("src");
     photoFrame.classList.remove("hasPhoto");
     avatar.textContent = initials(nombreInput.value || usuarioInput.value || "U");
+  }
+}
+
+function aplicarMarcoPerfil(profile) {
+  const desbloqueadas = profile.recompensasDesbloqueadas || [];
+  const tieneMarco = desbloqueadas.includes("marco_perfil");
+
+  if (tieneMarco) {
+    avatar.classList.add("rewardFrame");
+    photoFrame.classList.add("rewardFrameLarge");
+  } else {
+    avatar.classList.remove("rewardFrame");
+    photoFrame.classList.remove("rewardFrameLarge");
   }
 }
 
