@@ -1,4 +1,4 @@
-import { db, storage } from "./Firebase.js";
+import { db } from "./Firebase.js";
 import {
   addDoc,
   arrayUnion,
@@ -13,14 +13,13 @@ import {
   setDoc,
   where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 import { currentConversationId, formatDate, initials, isUserOnline, privateConversationId, requireAuth } from "./app.js";
 import { callManager } from "./call-manager.js";
+import { attachmentManager } from "./attachment-manager.js";
+
 const sendButton = document.getElementById("enviar");
 const input = document.getElementById("mensaje");
 const chat = document.getElementById("chat");
-const fileInput = document.getElementById("fileInput");
-const attachBtn = document.getElementById("attachBtn");
 const contacts = document.getElementById("contactsList");
 const groups = document.getElementById("groupsList");
 const title = document.getElementById("chatTitle");
@@ -39,6 +38,16 @@ const closeCallOverlayButton = document.getElementById("closeCallOverlay");
 const callStateLabel = document.getElementById("callStateLabel");
 const headerElement = document.querySelector(".topbar");
 const incomingCallBanner = document.createElement("div");
+
+// Elementos para adjuntos
+const attachBtn = document.getElementById("attachBtn");
+const fileInput = document.getElementById("fileInput");
+const attachmentPreview = document.getElementById("attachmentPreview");
+const attachmentIcon = document.getElementById("attachmentIcon");
+const attachmentName = document.getElementById("attachmentName");
+const attachmentSize = document.getElementById("attachmentSize");
+const clearAttachmentBtn = document.getElementById("clearAttachmentBtn");
+const enviarArchivoBtn = document.getElementById("enviarArchivo");
 
 const userColors = ["#256f5c", "#355f9d", "#7a4d92", "#8a6333", "#8a3f5d", "#4f6f36", "#6b5a2f"];
 
@@ -899,46 +908,46 @@ function bindMessages(id) {
   stopMessages = onSnapshot(q, (snapshot) => {
     chat.innerHTML = "";
     if (snapshot.empty) {
-      chat.innerHTML = `<div class="emptyState">An no hay mensajes. Escribe el primero.</div>`;
+      chat.innerHTML = `<div class="emptyState">Aún no hay mensajes. Escribe el primero.</div>`;
       return;
     }
 
     snapshot.forEach((item) => {
       const data = item.data();
-      const mine = data.uid === me.uid;
+      const mine = data.uid === me.uid || data.emisor === me.uid;
       const message = document.createElement("article");
       message.className = `msg ${mine ? "mine" : "theirs"} ${activeConversation?.tipo === "grupo" ? "groupMsg" : ""}`;
-      if (!mine) message.style.setProperty("--bubble", messageColor(data.uid || data.usuario));
+      if (!mine) message.style.setProperty("--bubble", messageColor(data.uid || data.usuario || data.emisor));
       
-      let contentHTML = `
-        <div class="metaRow">
-          <span class="who">@${escapeHtml(data.usuario || "usuario")}</span>
-          <span class="time">${formatDate(data.fecha)}</span>
-        </div>
-      `;
-      
-      // Renderizar archivo si existe
-      if (data.archivo) {
-        const { url, nombre, tipo, tamaño } = data.archivo;
-        const isImage = isImageType(tipo);
-        
-        if (isImage) {
-          // Mostrar imagen incrustada
-          contentHTML += `<div class="msgImage"><img src="${escapeHtml(url)}" alt="Imagen" style="max-width:100%; max-height:300px; border-radius:12px; cursor:pointer;" onclick="window.open('${escapeHtml(url)}', '_blank')"/></div>`;
-        } else {
-          // Mostrar archivo como descarga
-          const icon = getFileIcon(nombre);
-          const sizeKB = (tamaño / 1024).toFixed(1);
-          contentHTML += `<div class="msgFile"><a href="${escapeHtml(url)}" target="_blank" download="${escapeHtml(nombre)}" class="fileLink">${icon} ${escapeHtml(nombre)} (${sizeKB} KB)</a></div>`;
-        }
+      // Manejar mensajes de archivo
+      if (data.tipo === "archivo" && data.archivo) {
+        const arch = data.archivo;
+        const icon = attachmentManager.getFileIcon?.(arch.tipo) || "📎";
+        message.innerHTML = `
+          <div class="metaRow">
+            <span class="who">@${escapeHtml(data.usuario || data.emisor || "usuario")}</span>
+            <span class="time">${formatDate(data.fecha || data.enviado)}</span>
+          </div>
+          <div class="attachmentMessage">
+            <a href="${escapeHtml(arch.url)}" target="_blank" download="${escapeHtml(arch.nombre)}" class="attachmentLink">
+              <span class="attachmentIcon">${icon}</span>
+              <div class="attachmentDetails">
+                <div class="attachmentFileName">${escapeHtml(arch.nombre)}</div>
+                <div class="attachmentFileSize">${formatFileSize(arch.tamaño)}</div>
+              </div>
+            </a>
+          </div>
+        `;
+      } else {
+        // Mensaje de texto regular
+        message.innerHTML = `
+          <div class="metaRow">
+            <span class="who">@${escapeHtml(data.usuario || "usuario")}</span>
+            <span class="time">${formatDate(data.fecha)}</span>
+          </div>
+          <div class="text">${escapeHtml(data.texto || "")}</div>
+        `;
       }
-      
-      // Mostrar texto si existe
-      if (data.texto) {
-        contentHTML += `<div class="text">${escapeHtml(data.texto || "")}</div>`;
-      }
-      
-      message.innerHTML = contentHTML;
       chat.appendChild(message);
     });
     chat.scrollTop = chat.scrollHeight;
@@ -946,6 +955,15 @@ function bindMessages(id) {
     console.error("Error al leer mensajes:", error);
     chat.innerHTML = `<div class="emptyState">No se pudieron cargar los mensajes. Revisa las reglas de Firestore.</div>`;
   });
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return "0 B";
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
 }
 
 async function sendMessage() {
@@ -998,93 +1016,74 @@ function escapeHtml(value) {
   }[char]));
 }
 
-// Funciones para manejar archivos e imágenes
-async function uploadFile(file) {
-  if (!file || !activeConversation) return null;
-  
-  try {
-    const timestamp = Date.now();
-    const fileName = `${timestamp}_${file.name}`;
-    const conversationPath = `chats/${activeConversation.id}/${fileName}`;
-    const storageRef = ref(storage, conversationPath);
-    
-    console.log(`[Uploading] ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
-    
-    await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(storageRef);
-    
-    console.log(`[Uploaded] ${file.name} -> ${downloadURL}`);
-    return {
-      url: downloadURL,
-      name: file.name,
-      type: file.type,
-      size: file.size
-    };
-  } catch (error) {
-    console.error("Error uploading file:", error);
-    alert("Error al subir archivo. Intenta de nuevo.");
-    return null;
-  }
-}
-
-async function sendFileMessage(file) {
-  if (!file) return;
-  
-  const fileData = await uploadFile(file);
-  if (!fileData) return;
-  
-  try {
-    const msgRef = collection(db, "conversaciones", activeConversation.id, "mensajes");
-    await addDoc(msgRef, {
-      de: me.uid,
-      texto: "", // Mensaje vacío
-      archivo: {
-        url: fileData.url,
-        nombre: fileData.name,
-        tipo: fileData.type,
-        tamaño: fileData.size
-      },
-      enviado: serverTimestamp()
-    });
-    
-    fileInput.value = ""; // Limpiar input
-  } catch (error) {
-    console.error("Error sending file message:", error);
-    alert("Error al guardar el archivo. Intenta de nuevo.");
-  }
-}
-
-function isImageType(mimeType) {
-  return mimeType && mimeType.startsWith("image/");
-}
-
-function getFileIcon(fileName) {
-  const ext = fileName.split(".").pop().toLowerCase();
-  const icons = {
-    pdf: "📄",
-    doc: "📝",
-    docx: "📝",
-    xls: "📊",
-    xlsx: "📊",
-    txt: "📃",
-    zip: "📦",
-    rar: "📦"
-  };
-  return icons[ext] || "📎";
-}
-
 sendButton.addEventListener("click", sendMessage);
-attachBtn?.addEventListener("click", () => fileInput?.click());
-fileInput?.addEventListener("change", (e) => {
-  const file = e.target.files?.[0];
-  if (file) sendFileMessage(file);
-});
 input.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     sendMessage();
   }
 });
+
+// Event listeners para adjuntos
+attachBtn?.addEventListener("click", () => {
+  fileInput.click();
+});
+
+fileInput?.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  
+  try {
+    const attachment = attachmentManager.selectFile(file);
+    showAttachmentPreview(attachment);
+    enviarArchivoBtn.classList.remove("hidden");
+    sendButton.classList.add("hidden");
+  } catch (error) {
+    alert(error.message);
+    fileInput.value = "";
+  }
+});
+
+clearAttachmentBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
+  attachmentManager.clearSelection();
+  attachmentPreview.classList.add("hidden");
+  fileInput.value = "";
+  enviarArchivoBtn.classList.add("hidden");
+  sendButton.classList.remove("hidden");
+});
+
+enviarArchivoBtn?.addEventListener("click", async () => {
+  if (!activeConversation || !attachmentManager.getSelectedFile()) return;
+  
+  try {
+    enviarArchivoBtn.disabled = true;
+    enviarArchivoBtn.textContent = "Enviando...";
+    
+    const attachmentData = await attachmentManager.uploadFile();
+    await attachmentManager.saveAttachmentMessage(activeConversation.id, me.uid, attachmentData);
+    
+    attachmentManager.clearSelection();
+    attachmentPreview.classList.add("hidden");
+    fileInput.value = "";
+    enviarArchivoBtn.classList.add("hidden");
+    enviarArchivoBtn.disabled = false;
+    enviarArchivoBtn.textContent = "📤";
+    sendButton.classList.remove("hidden");
+  } catch (error) {
+    console.error("Error enviando archivo:", error);
+    alert("Error al enviar archivo: " + error.message);
+    enviarArchivoBtn.disabled = false;
+    enviarArchivoBtn.textContent = "📤";
+  }
+});
+
+function showAttachmentPreview(attachment) {
+  attachmentIcon.textContent = attachment.icon;
+  attachmentName.textContent = attachment.name;
+  attachmentSize.textContent = attachment.size;
+  attachmentPreview.classList.remove("hidden");
+}
 
 
 

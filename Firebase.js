@@ -10,10 +10,8 @@ getAuth
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
-getStorage
+  getStorage
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-
-
 
 // CONFIGURACION
 const firebaseConfig = {
@@ -25,22 +23,16 @@ const firebaseConfig = {
   appId: "1:670275619839:web:878b26a2aa9f1732f0b5ca"
 };
 
-
 // iniciar firebase
 const app = initializeApp(firebaseConfig);
-
 
 // base de datos
 export const db = getFirestore(app);
 
-
 // autenticación
 export const auth = getAuth(app);
 
-// storage para archivos e imágenes
+// storage para archivos
 export const storage = getStorage(app);
 
-// exportar
-// export { db, auth, storage };
-
-console.log("Firebase conectado");
+console.log("Firebase conectado (con Storage)");

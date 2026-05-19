@@ -31,6 +31,10 @@
   --max:1200px;
 }
 
+.hidden{
+  display:none !important;
+}
+
 *{box-sizing:border-box}
 html{min-height:100%}
 body{
@@ -524,42 +528,52 @@ a:hover{opacity:.95}
 .msg .text{margin-top:6px; color:var(--text); line-height:1.35}
 .msg .metaRow{display:flex; align-items:center; justify-content:space-between; gap:10px}
 
-/* Message media */
-.msgImage{
+.attachmentMessage{
   margin-top:8px;
+}
+
+.attachmentLink{
   display:flex;
-  justify-content:center;
-}
-
-.msgImage img{
-  max-width:100%;
-  max-height:300px;
-  border-radius:12px;
-  box-shadow:0 2px 8px rgba(0,0,0,.3);
-}
-
-.msgFile{
-  margin-top:8px;
-}
-
-.fileLink{
-  display:inline-flex;
   align-items:center;
-  gap:8px;
-  padding:8px 12px;
-  border-radius:10px;
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(69,214,173,.2);
-  color:var(--accent);
-  font-size:13px;
-  font-weight:600;
+  gap:10px;
+  padding:10px 12px;
+  background:rgba(69,214,173,.08);
+  border:1px solid rgba(69,214,173,.18);
+  border-radius:12px;
   text-decoration:none;
+  color:var(--text);
   transition:all 0.2s ease;
 }
 
-.fileLink:hover{
-  background:rgba(69,214,173,.12);
-  border-color:rgba(69,214,173,.4);
+.attachmentLink:hover{
+  background:rgba(69,214,173,.15);
+  border-color:rgba(69,214,173,.35);
+  transform:translateY(-2px);
+}
+
+.attachmentIcon{
+  font-size:24px;
+  flex-shrink:0;
+}
+
+.attachmentDetails{
+  min-width:0;
+  flex:1;
+}
+
+.attachmentFileName{
+  font-size:13px;
+  color:var(--text);
+  font-weight:500;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.attachmentFileSize{
+  font-size:11px;
+  color:var(--muted2);
+  margin-top:2px;
 }
 
 .composer{
@@ -584,8 +598,92 @@ a:hover{opacity:.95}
   background:rgba(255,255,255,.02);
   display:grid; place-items:center;
   cursor:pointer;
+  flex-shrink:0;
+  font-size:18px;
+  font-weight:bold;
 }
 .iconBtn:hover{border-color:rgba(255,255,255,.18)}
+
+/* Attachment preview styles */
+.attachmentPreview{
+  padding:8px 12px;
+  border-radius:12px;
+  background:rgba(69,214,173,.08);
+  border:1px solid rgba(69,214,173,.18);
+  display:flex;
+  align-items:center;
+  gap:12px;
+  animation:slideIn 0.2s ease-out;
+}
+
+.attachmentPreview.hidden{
+  display:none !important;
+}
+
+@keyframes slideIn {
+  from {
+    opacity:0;
+    transform:translateY(-10px);
+  }
+  to {
+    opacity:1;
+    transform:translateY(0);
+  }
+}
+
+.attachmentItem{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex:1;
+  min-width:0;
+}
+
+.attachmentIcon{
+  font-size:20px;
+  flex-shrink:0;
+}
+
+.attachmentInfo{
+  min-width:0;
+  flex:1;
+}
+
+.attachmentName{
+  font-size:13px;
+  color:var(--text);
+  font-weight:500;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.attachmentSize{
+  font-size:11px;
+  color:var(--muted2);
+  margin-top:2px;
+}
+
+.clearAttachmentBtn{
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  border:none;
+  background:rgba(255,107,107,.15);
+  color:var(--danger);
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+  flex-shrink:0;
+  font-size:14px;
+  font-weight:bold;
+  transition:all 0.2s ease;
+}
+
+.clearAttachmentBtn:hover{
+  background:rgba(255,107,107,.25);
+  transform:scale(1.1);
+}
 .composer input{
   flex:1;
   border:none;
@@ -914,7 +1012,22 @@ kbd{
   }
 
   .composer .iconBtn{
-    display:none;
+    width:32px;
+    height:32px;
+    flex-shrink:0;
+  }
+  
+  .attachmentPreview{
+    padding:6px 10px;
+    font-size:12px;
+  }
+  
+  .attachmentName{
+    font-size:12px;
+  }
+  
+  .attachmentIcon{
+    font-size:16px;
   }
 
   .composer .btn{

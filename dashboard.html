@@ -75,13 +75,27 @@
       </section>
 
       <footer class="composer">
-        <input id="fileInput" type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" style="display:none;" />
         <div class="iconBtn" id="attachBtn" title="Adjuntar archivo">+</div>
+        <input type="file" id="fileInput" style="display:none;" accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx,video/*,audio/*" />
+        
+        <!-- Mostrar archivo seleccionado -->
+        <div id="attachmentPreview" class="attachmentPreview hidden">
+          <div class="attachmentItem">
+            <span id="attachmentIcon" class="attachmentIcon">📎</span>
+            <div class="attachmentInfo">
+              <div id="attachmentName" class="attachmentName"></div>
+              <div id="attachmentSize" class="attachmentSize"></div>
+            </div>
+            <button id="clearAttachmentBtn" class="clearAttachmentBtn" title="Quitar archivo">✕</button>
+          </div>
+        </div>
+        
         <div class="box">
           <input id="mensaje" placeholder="Mensaje..." />
           <kbd>Enter</kbd>
         </div>
         <button id="enviar" class="btn primary">Enviar</button>
+        <button id="enviarArchivo" class="btn primary hidden" title="Enviar archivo">📤</button>
       </footer>
     </main>
   </div>
