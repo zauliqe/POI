@@ -500,35 +500,49 @@ a:hover{opacity:.95}
 }
 .messages{
   padding:16px;
-  padding-right:8px;
+  padding-right:4px;
   overflow-y:auto;
   display:flex;
   flex-direction:column;
+  gap:6px;
 }
-.messages::-webkit-scrollbar{width:8px}
-.messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08); border-radius:999px}
+.messages::-webkit-scrollbar{width:12px}
+.messages::-webkit-scrollbar-track{background:rgba(255,255,255,.02); border-radius:999px}
+.messages::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2); border-radius:999px}
+.messages::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.3)}
 
 .msg{
-  max-width: 72%;
-  margin: 10px 0;
-  padding:10px 12px;
-  border-radius: 18px;
+  width:fit-content;
+  max-width:75%;
+  margin:0;
+  padding:10px 14px;
+  border-radius:18px;
   border:1px solid var(--stroke);
-  background: rgba(12, 34, 32, .75);
+  background:rgba(12, 34, 32, .75);
+  word-break:break-word;
+  overflow-wrap:break-word;
+  word-wrap:break-word;
 }
 .msg.mine{
   margin-left:auto;
-  background: #0F4D39;
-  border-color: rgba(69,214,173,.18);
+  background:#0F4D39;
+  border-color:rgba(69,214,173,.18);
 }
 .msg.theirs{
-  background: #2D6E5D;
-  border-color: rgba(255,255,255,.10);
+  background:#2D6E5D;
+  border-color:rgba(255,255,255,.10);
 }
 .msg.groupMsg.theirs .who{color:rgba(255,255,255,.84)}
 .msg .who{font-size:12px; color:rgba(69,214,173,.85); font-weight:650}
 .msg .time{font-size:12px; color:var(--muted2); margin-left:8px}
-.msg .text{margin-top:6px; color:var(--text); line-height:1.35}
+.msg .text{
+  margin-top:6px;
+  color:var(--text);
+  line-height:1.4;
+  word-break:break-word;
+  overflow-wrap:break-word;
+  white-space:pre-wrap;
+}
 .msg .metaRow{display:flex; align-items:center; justify-content:space-between; gap:10px}
 
 .attachmentMessage{
@@ -586,6 +600,7 @@ a:hover{opacity:.95}
   border-radius:12px;
   overflow:hidden;
   border:1px solid var(--stroke);
+  display:block;
 }
 .imagePreview img {
   width:100%;
@@ -595,7 +610,7 @@ a:hover{opacity:.95}
   transition:opacity 0.2s ease;
 }
 .imagePreview img:hover {
-  opacity:0.9;
+  opacity:0.85;
 }
 
 .composer{
@@ -891,12 +906,16 @@ kbd{
 
   .messages{
     padding:12px;
+    padding-right:4px;
   }
 
   .msg{
-    max-width:88%;
-    padding:9px 11px;
+    width:fit-content;
+    max-width:85%;
+    padding:9px 12px;
     border-radius:16px;
+    word-break:break-word;
+    overflow-wrap:break-word;
   }
 
   .imagePreview {
@@ -1052,6 +1071,13 @@ kbd{
     font-size:12px;
   }
 
+  .msg {
+    width:fit-content;
+    max-width:92%;
+    word-break:break-word;
+    overflow-wrap:break-word;
+  }
+
   .imagePreview {
     max-width:160px;
   }
@@ -1062,9 +1088,5 @@ kbd{
 
   .composer .btn{
     flex:0 0 auto;
-  }
-
-  .msg{
-    max-width:94%;
   }
 }
