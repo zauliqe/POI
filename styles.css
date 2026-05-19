@@ -273,6 +273,46 @@ a:hover{opacity:.95}
   border:1px solid var(--stroke);
   margin-top:10px;
 }
+.notificationHeader{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+}
+.notificationsList{
+  display:grid;
+  gap:10px;
+  max-height:calc(100dvh - 260px);
+  overflow-y:auto;
+  padding-right:4px;
+}
+.notificationsList::-webkit-scrollbar{width:8px}
+.notificationsList::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12); border-radius:999px}
+.notificationItem{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:12px;
+  border-radius:18px;
+  border:1px solid rgba(255,255,255,.09);
+  background:
+    linear-gradient(135deg, rgba(0,255,204,.08), transparent 42%),
+    rgba(255,255,255,.035);
+}
+.notificationAvatar{
+  flex:0 0 auto;
+  background:linear-gradient(135deg, rgba(69,214,173,.28), rgba(241,200,75,.18));
+}
+.notificationBody{
+  min-width:0;
+  flex:1;
+}
+.notificationDate{
+  flex:0 0 auto;
+  text-align:right;
+}
 .compactSelect{
   width:auto;
   min-width:180px;

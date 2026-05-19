@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Notificaciones</title>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo"></div><div><b>CamOllin</b><div style="font-size:12px;color:var(--muted);">Notificaciones</div></div></div>
+    <nav class="nav">
+      <a href="dashboard.html">Chats</a>
+      <a href="tareas-grupo.html">Tareas del grupo</a>
+      <a href="crear-grupo.html">Crear grupo</a>
+      <a class="active" href="notificaciones.html">Notificaciones</a>
+      <a href="recompensas.html">Recompensas</a>
+      <a href="perfil.html">Perfil</a>
+    </nav>
+    <div class="sideSection">
+      <div class="pill">Info</div>
+      <nav class="nav">
+        <a href="mundial.html">Mundial 2026</a>
+        <a href="acerca-de.html">Acerca de</a>
+      </nav>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="left"><div class="avatar">N</div><div><div class="title">Notificaciones</div><div class="sub">Actividad de tus grupos y tareas</div></div></div>
+      <div class="right"><span id="notificacionesCount" class="pill">0 nuevas</span><a class="btn small" href="tareas-grupo.html">Ver tareas</a></div>
+    </header>
+
+    <section class="stage scrollStage">
+      <div class="container">
+        <div class="card pad">
+          <div class="notificationHeader">
+            <div>
+              <div class="pill">Centro de actividad</div>
+              <h1 class="h2" style="margin-top:10px;">Avisos recientes</h1>
+            </div>
+            <a class="btn small primary" href="crear-tarea.html">Crear tarea</a>
+          </div>
+          <div id="notificacionesList" class="notificationsList"></div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="composer">
+      <div class="pill">Se actualizan cuando hay tareas nuevas o completadas.</div>
+    </footer>
+  </main>
+</div>
+<script type="module" src="notificaciones.js"></script>
+</body>
+</html>

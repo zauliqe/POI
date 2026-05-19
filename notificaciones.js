@@ -8,9 +8,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const list = document.getElementById("notificacionesList");
+const count = document.getElementById("notificacionesCount");
+let unsubscribeNotifications = null;
 
 requireAuth((user) => {
   const groupsQuery = query(collection(db, "grupos"), where("miembros", "array-contains", user.uid));
+
   onSnapshot(groupsQuery, (groupsSnap) => {
     const groupIds = groupsSnap.docs.map((item) => item.id);
     bindNotifications(groupIds);
@@ -18,7 +21,9 @@ requireAuth((user) => {
 });
 
 function bindNotifications(groupIds) {
-  onSnapshot(collection(db, "notificaciones"), (snapshot) => {
+  if (unsubscribeNotifications) unsubscribeNotifications();
+
+  unsubscribeNotifications = onSnapshot(collection(db, "notificaciones"), (snapshot) => {
     const items = snapshot.docs
       .map((item) => ({ id: item.id, ...item.data() }))
       .filter((item) => !item.grupoId || groupIds.includes(item.grupoId))
@@ -28,21 +33,43 @@ function bindNotifications(groupIds) {
         return bDate - aDate;
       });
 
+    if (count) count.textContent = `${items.length} ${items.length === 1 ? "aviso" : "avisos"}`;
     list.innerHTML = "";
+
     if (!items.length) {
-      list.innerHTML = `<div class="emptyState">No tienes notificaciones todavía.</div>`;
+      list.innerHTML = `
+        <div class="emptyState">
+          No tienes notificaciones todavia.
+          <div class="meta" style="margin-top:8px;">Cuando creen o completen tareas en tus grupos apareceran aqui.</div>
+        </div>
+      `;
       return;
     }
 
     items.forEach((item) => {
       const row = document.createElement("div");
-      row.className = "item bordered";
+      row.className = "notificationItem";
       row.innerHTML = `
-        <div class="avatar">${initials(item.titulo || "N")}</div>
-        <div><div class="name">${item.titulo || "Notificación"}</div><div class="meta">${item.texto || ""}</div></div>
-        <div style="margin-left:auto;" class="meta">${formatDate(item.creada)}</div>
+        <div class="avatar notificationAvatar">${initials(item.titulo || "N")}</div>
+        <div class="notificationBody">
+          <div class="name">${escapeHtml(item.titulo || "Notificacion")}</div>
+          <div class="meta">${escapeHtml(item.texto || "")}</div>
+        </div>
+        <div class="meta notificationDate">${formatDate(item.creada)}</div>
       `;
       list.appendChild(row);
     });
+  }, (error) => {
+    console.error("Error al cargar notificaciones:", error);
+    list.innerHTML = `<div class="emptyState">No se pudieron cargar las notificaciones.</div>`;
   });
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
