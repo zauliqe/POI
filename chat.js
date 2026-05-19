@@ -387,19 +387,29 @@ function setupCallSession(callId, remoteName) {
   debugPanel.style.display = "block";
   addDebugLog(` Iniciando sesin de llamada. Caller: ${isCaller}`);
 
+  // Forzar reflow para asegurar que el layout se recalcule correctamente
+  // (especialmente importante en landscape en tablets)
+  if (callOverlay.offsetHeight) {
+    void callOverlay.offsetHeight; // Trigger reflow
+  }
+
   callRef = doc(db, "llamadas", callId);
-  startLocalMedia()
-    .then(async () => {
-      callManager.setStreamReady(callSessionId, true);
-      createPeerConnection();
-      listenCallDocument();
-      addDebugLog(`[OK] Sesin de llamada iniciada`);
-    })
-    .catch((error) => {
-      addDebugLog(`[X] Error iniciando medios para la llamada: ${error.message}`);
-      callManager.updateCallStatus(callSessionId, "failed");
-      callStateLabel.textContent = "No se pudo acceder a la cmara o al micrfono.";
-    });
+  
+  // Pequeño delay para asegurar que el DOM esté completamente actualizado
+  setTimeout(() => {
+    startLocalMedia()
+      .then(async () => {
+        callManager.setStreamReady(callSessionId, true);
+        createPeerConnection();
+        listenCallDocument();
+        addDebugLog(`[OK] Sesin de llamada iniciada`);
+      })
+      .catch((error) => {
+        addDebugLog(`[X] Error iniciando medios para la llamada: ${error.message}`);
+        callManager.updateCallStatus(callSessionId, "failed");
+        callStateLabel.textContent = "No se pudo acceder a la cmara o al micrfono.";
+      });
+  }, 50);
 }
 
 async function startLocalMedia() {
