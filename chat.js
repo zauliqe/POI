@@ -1061,7 +1061,11 @@ enviarArchivoBtn?.addEventListener("click", async () => {
     enviarArchivoBtn.textContent = "Enviando...";
     
     const attachmentData = await attachmentManager.uploadFile();
-    await attachmentManager.saveAttachmentMessage(activeConversation.id, me.uid, attachmentData);
+    await attachmentManager.saveAttachmentMessage(activeConversation.id, me.uid, {
+      usuario: profile.usuario || "usuario",
+      nombre: profile.nombre || profile.usuario || "Usuario",
+      ...attachmentData
+    });
     
     attachmentManager.clearSelection();
     attachmentPreview.classList.add("hidden");

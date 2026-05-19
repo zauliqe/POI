@@ -130,7 +130,9 @@ export class AttachmentManager {
       const messagesRef = collection(db, "conversaciones", conversationId, "mensajes");
       
       await addDoc(messagesRef, {
-        emisor: userId,
+        uid: userId,
+        usuario: attachmentData.usuario,
+        nombre: attachmentData.nombre,
         tipo: "archivo",
         archivo: {
           nombre: attachmentData.name,
@@ -138,7 +140,7 @@ export class AttachmentManager {
           tamaño: attachmentData.size,
           url: attachmentData.url
         },
-        enviado: serverTimestamp()
+        fecha: serverTimestamp()
       });
 
       // Actualizar timestamp de conversación
