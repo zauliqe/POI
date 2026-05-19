@@ -31,7 +31,7 @@
       <div class="right"><button id="btnGuardarPerfil" class="btn small primary">Guardar</button></div>
     </header>
 
-    <section class="stage">
+    <section class="stage scrollStage">
       <div class="container">
         <div class="grid2">
           <div class="card pad">
@@ -49,6 +49,20 @@
             <div style="margin-top:12px;"><select class="select"><option>Privacidad: Mostrar estado activo</option></select></div>
             <div style="margin-top:12px;"><button id="btnCerrarSesion" class="btn danger">Cerrar sesión</button></div>
           </div>
+        </div>
+
+        <div class="card pad profilePhotoPanel">
+          <h2 class="h2">Foto de perfil</h2>
+          <div id="profilePhotoFrame" class="profilePhotoFrame">
+            <img id="profilePhotoPreview" alt="Foto de perfil" />
+            <div id="profilePhotoFallback" class="profilePhotoFallback">U</div>
+          </div>
+          <div class="photoActions">
+            <label class="btn primary" for="fotoPerfilInput">Subir foto</label>
+            <button id="btnEliminarFoto" class="btn danger" type="button">Eliminar foto</button>
+            <input id="fotoPerfilInput" class="srInput" type="file" accept="image/*" />
+          </div>
+          <p class="p">La imagen se verá en tu perfil y en las listas de chat.</p>
         </div>
       </div>
     </section>

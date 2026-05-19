@@ -163,7 +163,7 @@ function showEmpty(message) {
   activeConversation = null;
   title.textContent = "Chats";
   subtitle.textContent = message;
-  headerAvatar.textContent = "C";
+  renderAvatar(headerAvatar, { nombre: "Chats" });
   callLink.classList.add("disabled");
   chat.innerHTML = `<div class="emptyState">${message}</div>`;
 }
@@ -211,7 +211,7 @@ function contactItem(user) {
   item.className = `item ${activeConversation?.id === id ? "active" : ""}`;
   item.href = `dashboard.html?c=${id}`;
   item.innerHTML = `
-    <div class="avatar withStatus">${initials(user.nombre || user.usuario)}<span class="statusDot ${online ? "online" : ""}"></span></div>
+    <div class="avatar withStatus">${avatarContent(user)}<span class="statusDot ${online ? "online" : ""}"></span></div>
     <div class="itemText">
       <div class="name">${escapeHtml(user.nombre || user.usuario || "Usuario")}</div>
       <div class="meta">${online ? "En lnea" : "Desconectado"}  @${escapeHtml(user.usuario || "usuario")}</div>
@@ -231,7 +231,7 @@ function groupItem(group) {
   item.className = `item ${activeConversation?.id === group.id ? "active" : ""}`;
   item.href = `dashboard.html?c=${group.id}`;
   item.innerHTML = `
-    <div class="avatar">${initials(group.nombre || "Grupo")}</div>
+    <div class="avatar">${avatarContent(group)}</div>
     <div class="itemText">
       <div class="name">${escapeHtml(group.nombre || "Grupo")}</div>
       <div class="meta">${group.miembros?.length || 0} miembros  ${escapeHtml(group.tipo || "Privado")}</div>
@@ -276,16 +276,21 @@ async function openConversation(id) {
   bindMessages(id);
 }
 
-function renderHeader() {
+async function renderHeader() {
   if (activeConversation.tipo === "grupo") {
     title.textContent = activeConversation.nombre || "Grupo";
     subtitle.textContent = `${activeConversation.miembros?.length || 0} miembros`;
-    headerAvatar.textContent = initials(activeConversation.nombre || "Grupo");
+    renderAvatar(headerAvatar, { nombre: activeConversation.nombre || "Grupo" });
   } else {
     const otherUid = activeConversation.miembros?.find((uid) => uid !== me.uid);
     title.textContent = activeConversation.nombres?.[otherUid] || "Chat privado";
     subtitle.textContent = "Chat individual";
-    headerAvatar.textContent = initials(title.textContent);
+    if (otherUid) {
+      const userSnap = await getDoc(doc(db, "usuarios", otherUid));
+      renderAvatar(headerAvatar, userSnap.exists() ? userSnap.data() : { nombre: title.textContent });
+    } else {
+      renderAvatar(headerAvatar, { nombre: title.textContent });
+    }
   }
   callLink.href = "javascript:void(0)";
   callLink.classList.remove("disabled");
@@ -918,6 +923,7 @@ function bindMessages(id) {
       const message = document.createElement("article");
       message.className = `msg ${mine ? "mine" : "theirs"} ${activeConversation?.tipo === "grupo" ? "groupMsg" : ""}`;
       if (!mine) message.style.setProperty("--bubble", messageColor(data.uid || data.usuario || data.emisor));
+      const senderAvatar = activeConversation?.tipo === "grupo" && !mine ? `<div class="msgAvatar">${avatarContent(data)}</div>` : "";
       
       // Manejar mensajes de archivo
       if (data.tipo === "archivo" && data.archivo) {
@@ -928,6 +934,7 @@ function bindMessages(id) {
         if (isImage) {
           // Mostrar imagen como preview
           message.innerHTML = `
+            ${senderAvatar}
             <div class="metaRow">
               <span class="who">@${escapeHtml(data.usuario || data.emisor || "usuario")}</span>
               <span class="time">${formatDate(data.fecha || data.enviado)}</span>
@@ -941,6 +948,7 @@ function bindMessages(id) {
         } else {
           // Mostrar archivo como link
           message.innerHTML = `
+            ${senderAvatar}
             <div class="metaRow">
               <span class="who">@${escapeHtml(data.usuario || data.emisor || "usuario")}</span>
               <span class="time">${formatDate(data.fecha || data.enviado)}</span>
@@ -959,6 +967,7 @@ function bindMessages(id) {
       } else {
         // Mensaje de texto regular
         message.innerHTML = `
+          ${senderAvatar}
           <div class="metaRow">
             <span class="who">@${escapeHtml(data.usuario || "usuario")}</span>
             <span class="time">${formatDate(data.fecha)}</span>
@@ -998,6 +1007,7 @@ async function sendMessage() {
       uid: me.uid,
       usuario: profile.usuario || "usuario",
       nombre: profile.nombre || profile.usuario || "Usuario",
+      foto: profile.foto || "",
       texto: text,
       fecha: serverTimestamp()
     });
@@ -1032,6 +1042,15 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#039;"
   }[char]));
+}
+
+function avatarContent(data = {}) {
+  if (data.foto) return `<img src="${data.foto}" alt="">`;
+  return initials(data.nombre || data.usuario || data.name || "U");
+}
+
+function renderAvatar(element, data = {}) {
+  element.innerHTML = avatarContent(data);
 }
 
 sendButton.addEventListener("click", sendMessage);
@@ -1082,6 +1101,7 @@ enviarArchivoBtn?.addEventListener("click", async () => {
     await attachmentManager.saveAttachmentMessage(activeConversation.id, me.uid, {
       usuario: profile.usuario || "usuario",
       nombre: profile.nombre || profile.usuario || "Usuario",
+      foto: profile.foto || "",
       ...attachmentData
     });
     
@@ -1106,6 +1126,3 @@ function showAttachmentPreview(attachment) {
   attachmentSize.textContent = attachment.size;
   attachmentPreview.classList.remove("hidden");
 }
-
-
-
