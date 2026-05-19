@@ -497,14 +497,17 @@ a:hover{opacity:.95}
   height:100%;
   display:grid;
   grid-template-rows: 1fr;
+  min-height:0;
 }
 .messages{
+  height:100%;
   padding:16px;
   padding-right:4px;
   overflow-y:auto;
   display:flex;
   flex-direction:column;
   gap:6px;
+  min-height:0;
 }
 .messages::-webkit-scrollbar{width:12px}
 .messages::-webkit-scrollbar-track{background:rgba(255,255,255,.02); border-radius:999px}
@@ -905,8 +908,11 @@ kbd{
   }
 
   .messages{
+    height:100%;
     padding:12px;
     padding-right:4px;
+    overflow-y:auto;
+    min-height:0;
   }
 
   .msg{
